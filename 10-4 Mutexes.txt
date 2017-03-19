@@ -52,7 +52,14 @@ Mutexes
 	when the kernel configuration option CONFIG_DEBUG_MUTEXES is enabled,
 	a multitude of debugging checks ensure that these constraints are always upheld
 
+
 Semaphores Versus Mutexes
+
+	unless one of mutex's additional constraints prevent you from using them, prefer the new mutex type to semaphores
+
+	start with a mutex and move to semaphore only if you run into one of their constraints and have no other alternative
+
+Spin Lock Versus Mutexes
 
 	low overhead locking	-> spin lock
 	short lock hold time	-> spin lock
