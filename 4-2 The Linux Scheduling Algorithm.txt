@@ -1,0 +1,61 @@
+The Linux Scheduling Algorithm
+
+Scheduler Classes 
+
+	scheduler Classes - enable different, pluggable algorithms to coexist, scheduling their own types of processes
+
+	each scheduler class has a priority
+
+	CFS is registered scheduler class for normal processes, called SCHED_NORMAL in Linux(defined in kernel/sched_fair.c)
+
+Process Scheduling in Unix Systems
+
+	Process Scheduling in traditional Unix systems has several pathological problems
+
+		1. mapping nice values onto timeslices requires a decision about what absolute timeslice allot each nice value
+
+			for example, nice value 0: timeslice 100ms
+			nice value 20: timeslice 5ms -> context switch twice in 105ms
+			but, 2 nice value 20 -> context switch twice in 10ms
+			2 nice value 0 : 100ms
+			-> these 2 are not ideal
+
+		2. concerns relative nice values and the nice value to timeslice mapping
+
+		nice value 0: 100ms, nice value 1: 95ms -> nearly identical
+		but, nice value 18: 10ms, nice value 19: 5ms -> twice
+		-> means that "nicing down a process by one" has wildly different effects depending on the starting nice value
+
+		3. if, performing a nice value to timeslice mapping, we need the ability to assign an absolute timeslice(multiple of timer tick)
+		->problem	1. minimum timeslice has a floor of the period of the timer tick
+					2. the system timer limits the difference between successive nice values
+					
+		4. concerns handling process wake up in a priority-based scheduler that wants to optimize for interactive tasks
+		-> providing one process an unfair amount of processor time(long time), at the expense of the rest of the system
+
+Fair Scheduling
+
+	CFS - Model process scheduling as if the system had an ideal, perfectly multitasking processor
+
+	perfect multitasking is impractical
+		- it is not possible on a single processor to literally run multiple processes for infinitely small durations
+
+		- it is not efficient to run processes for infinitely small durations(overhead of context switching)
+
+	CFS will run each process for some amount of time, round robin, selecting next the process which has run the least
+
+	CFS calculates how long a process should run as a function of the total number of runnable process
+
+	CFS uses nice value to weight the proportion of processor a process is to receive
+	lower value(higher priority) process receive a larger weight
+
+	targeted latency - a target for its approximation of the "infinitely small" scheduling duration in perfect multitasking
+	smaller targets yield better interactivity and a closer approximation to perfect multitasking
+	but, higher switching cost
+
+	minimum granularity - a floor on the timeslice assigned to each process
+	by default, it is 1ms
+	-> ensure ceiling on the incurred switching context
+
+	CFS is called fair scheduler because it gives each process a fair share(proportion) of the processor's time
+

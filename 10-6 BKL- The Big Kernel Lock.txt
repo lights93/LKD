@@ -1,0 +1,31 @@
+BKL: The Big Kernel Lock
+
+	BKL is a global spin lock that was created to ease the transition from Linux's original SMP implementation to fine-grained locking
+
+	BKL has some interesting properties
+
+		- you can sleep while holding the BKL
+		the lock is automatically dropped when the task is unscheduled and reacquired when the task is rescheduled
+		of course, this does not mean it is always safe to sleep while holding the BKL, merely that you can and you will not deadlock
+
+		- BKL is a recursive lock
+
+		- you can use the BKL only in process context
+		you cannot acquire the BKL in interrupt context
+
+		- new users of the BKL are forbidden
+		with every kernel release, fewer and fewer drivers and subsystems rely on the BKL
+
+		use of the BKL is discouraged
+		the lock is still fairly well used in parts of the kernel
+		-> understanding the BKL and its interfaces is important
+
+		BKL behaves like a spin lock, with the additions previously discussed
+
+		lock_kernel() - acquires the BKL
+		unlock_kernel() - releases the BKL
+		kernel_locker() - returns nonzero if the lock is held and zero otherwise
+
+		BKL is protecting code instead of data
+		this makes replacing BKL uses with a spin lock difficult because it is not easy to determine just what is being locked
+		the replacement is even harder in that the relationship between all BKL users need to be determined

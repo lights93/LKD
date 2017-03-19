@@ -1,0 +1,92 @@
+Kernel Synchronization Methods
+
+	Atomic Operations
+
+		atomic operations - provides instructions that execute atomically, without interruption
+
+		the kernel provides 2 sets of interfaces for atomic operations
+			operates on integers
+			operates on individual bits
+
+		these interfaces are implemented on every architecture that Linux supports
+
+	Atomic Integer Operations
+
+		atomic integer methods operate on a special data type, atomic_t
+
+		atomic_t is used, as opposed to having functions work directly on the C int type
+
+			1. ensures that the atomic operations are used only with these special types
+			likewise, it also ensures that the data types are not passed to any nonatomic functions
+
+			2. ensures the compiler does not optimize access to the value
+
+			3. can hide any architecture-specific differences in its implementation
+
+			typedef struct{
+				volatile int counter
+			} atomic-t;
+
+		SPARC port in Linux has an odd implementation of atomic operations
+			lock was embedded in the lower 8 bits of the 32-bit int. 
+			the lock was used to protect concurrent access to the atomic type because SPARC architecture lacks appropriate support at the instruction level
+
+			only 24 usable bits were available on SPARC machines
+
+		declarations needed to use the atomic integer operations in <asm/atomic.h>
+
+		all architectures provide at leats a minimum set of operations that are used throughout the kernel
+
+		common use of the atomic integer operations is to implement counters. 
+		Protecting a sole counter with a complex locking scheme is overkill, so instead developers use atomic_inc() and atomic_dec()
+
+		another use of the atomic integer operators is atomically performing an operation and testing the result
+
+		int atomic_dec_and_test(atomic_t *v)
+			decrements by one the given atomic value
+			if the value is 0, return true
+			otherwise, it returns false
+
+		atomic operations are typically implemented as inline functions with inline assembly
+
+		in the case where a specific function is inherently atomic, the given function is usually just a macro
+
+		it is usually preferred to choose atomic operations over more complicated locking mechanisms
+
+	64-Bit Atomic Operations
+
+		with the rising of prevalence of 64-bit architectures, Linux kernel developers increased the 32-bit atomic_t type with a 64-bit variant, atomic64_t
+
+		for portability, atomic_t cannot change between architectures, so atomic_t is 32bit even on 64-bit architectures
+
+		nearly all the classic 32-bit atomic operations are implemented in 64-bit variants( atomic -> atomic64)
+
+		all 64-bit architectures provide atomic64_t and a family of arithmetic functions to operate on it
+
+		most 32-bit arithmetic do not support atomic64_t
+
+		for portability between all Linux's supported architectures, developers should use the 32-bit atomic_t type
+
+	Atomic Bitwise Operations
+
+		kernel also provides a family of functions that operate at the bit level
+
+		bitwise functions operate on generic memory addresses
+		the argument are a pointer and a bit number
+
+		there are no limitations on the bit number supplied
+
+		because the functions operate on a generic pointer, there is no equivalent of the atomic integer's atomic_t type
+
+		conveniently, nonatomic versions of all the bitwise functions are also provided
+		they behave identically to their atomic siblings, except they do not guarantee atomicity, and their names are prefixed with double underscores(ex. __test_bit())
+
+		the kernel also provides routines to find the first set(or unset) bit starting at a given address
+			int find_first_bit(unsigned long *addr, unsigned int size)
+			int find_first_zero_bit(unsigned long *addr, unsigned int size)
+
+		if your code searching only a word, the routines __ffs() and ffz(), which take a single parameter of the word in which to search, are optimal
+
+		no choice whether to use the bitwise operations
+
+		if your code in inherently safe from race conditions, you can use the nonatomic versions, which might be faster depending on architecture

@@ -1,0 +1,32 @@
+Scheduler-Related System Calls
+
+	Linux provides a family of system calls for management of scheduler parameters
+
+	Scheduling Policy and Priority-Related System Calls
+
+		sched_setscheduler() and sched_getscheduler() system calls set and
+		get the process's priority and real-time policy
+
+		sched_setparam() and sched_getparam() system calls set and get a process's real priority
+
+		nice()	- increments the given process's static priority by the given amount
+				- calls the kernel's set_user_nice(), sets the static_prio and prio values
+
+	Processor Affinity System Calls
+
+		The Linux scheduler enforces hard processor affinity
+
+		hard affinity is stored as a bitmask in the task's task_struct as cpus_allowed
+
+		bitmask contains one bit per processor on the system
+		by default, all bits are set -> runnable on any processor
+
+		sched_setaffinity() provide different bitmask
+		sched_getaffinity() returns the current cpus_allowed
+
+		when a process is initially created, it inherits its parent's affinity mask
+		when a processor's affinity is changed, the kernel uses the migration threads to push the task onto a legal processor
+
+	Yielding Processor Time
+
+		sched_yield() - explicitly yield the processor to other waiting processes

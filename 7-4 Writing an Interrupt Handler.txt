@@ -1,0 +1,63 @@
+Writing an Interrupt Handler
+
+	static irqreturn_t intr_handle(int irq, void *dev)
+		
+		irq: numeric value of the interrupt line
+
+		dev: generic pointer to the same dev
+			 act as a cookie to differentiate between multiple device
+			 point to a structure of use the interrupt handler
+
+		irqreturn_t: provides backward compatibility with earlier kernel
+					 simply int
+
+		static: it is never called directly from another file
+
+	role of interrupt handler depends entirely on the device and its reasons for issuing the interrupt
+	At a minimum, most interrupt handlers need to provide acknowledgement to the device that they received the interrupt
+
+Reentrancy and Interrupt Handlers
+
+	interrupt handler in Linux need not to be reentrant
+
+	same interrupt handler is never invoked concurrently to service a nested interrupt
+	-> simplifies writing interrupt handler
+
+Shared Handlers
+
+	-IRHF_SHARED flag must be set in the flags argument to request_irq()
+
+	-dev argument must be unique to each registered handler
+	a pointer(device structure) to any per-device structure is sufficient
+
+	-interrupt handler must be capable of distinguishing whether its device actually generated an interrupt
+	this requires both hardware support and associated logic in the interrupt handler
+
+	If any one device does not share fairly, none can share the line
+
+	when the kernel receives an interrupt, it invokes sequentially each registered handler on the line
+	-> it is important that the handler be capable of distinguishing whether it generated a given interrupt
+
+A Real-Life Interrupt Handler
+
+	RTC(real-time-clock) driver -separate from the system timer
+		-sets the system clock 
+		-provides an alarm
+		-supplies a periodic timer
+
+	rtc_init()	- initialize the driver
+				- register the interrupt handler
+
+	static irqreturn_t rtc_interrupt(int irq, void *dev)
+
+		1. set spin lock(not accessed by concurrently by another processor)
+
+		2. if an RTC periodic timer is set, it is updated by mod_timer()
+
+		3. the RTC driver enables a callback function to be registered and executed on each RTC interrupt
+
+		4. returns IRQ_HANDLED to signify that it properly handled this device
+
+		
+
+

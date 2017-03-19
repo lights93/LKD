@@ -1,0 +1,72 @@
+System Call Context
+
+	kernel is in process context during the execution of a system call
+
+	current pointer points to the current task, which is the process that issued system call
+
+	kernel is capable of sleeping and is fully preemptible
+		the capability to sleep means that system calls can make use of majority of the kernel's functionality
+
+		the fact that process context is preemptible implies the current task may be preempted by another task(?????????? 뭐다냐)
+
+Final Steps in Binding a System Call
+
+	register an official system call
+
+		1. add an entry to the end of the system call table
+		this needs to be done fore each architecture that supports the system call
+
+		2. for each supported architecture, define the syscall number in <asm/unisted.h>
+
+		3. compile the syscall into the kernel image.
+		putting the system call in a relevant file in kernel/, which is home to miscellaneous system calls
+
+	for most architectures, the table is located in entry.S
+
+	for each architecture you want to support, the system call must be added to the architecture's system call table
+
+Accessing the System Call from User-Space
+
+	C library provides support for system call
+
+	Linux provides a set of macros for wrapping access to system calls
+		syscalln()	- n is between 0~6(number of parameters)
+					-set up the register contents and issues the trap instruction
+
+	for each macro, 2+ 2 X n parameters
+	first parameter: return type of the syscall
+	second parameter: second is the name of the syscall
+
+Why Not to Implement a System Call
+
+	pros of implementing a new interface as a system call
+
+		-simple to implement and easy to use
+
+		-performance on Linux is fast
+
+	Cons
+		-need a syscall number, which needs to be officially assigned
+
+		-the interface cannot be change without breaking user-space applications
+
+		-each architecture needs to separately register the system call and support it
+
+		-System calls cannot be accessed directly from the file system
+
+		-hard to maintain and use a system call outside of the master kernel tree
+
+	alternatives
+
+		-Implement a device node and read() and write() to it, 
+		Use ioctl() to manipulate specific settings or retrieve specific information
+
+		- Certain interfaces(semaphores) can be represented as file descriptors and manipulated as such
+
+		-Add the information as a file to the appropriate location in sysfs
+
+	slow rate of addition of new system calls is a sign that Linux is a relatively stable and feature-complete OS
+
+
+
+

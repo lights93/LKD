@@ -1,0 +1,56 @@
+Process Creation
+
+	Unix takes 2 distinct functions for process creation(fork() + exec())
+
+	fork()	- creates a child process(copy of current task)
+			- differences are PID, PPID, certain resources and statistics, such as pending signals, which are not inherited
+
+	exec()	- loads a new executable into the address space and begins executing it
+
+Copy-on-write
+
+	upon fork(), all resources are duplicated -> inefficient
+
+	In linux, fork() is implemented by copy-on-write(COW)
+
+	copy-on-write	- technique to delay or altogether prevent copying of data
+					- the parent and the child share a single copy
+					- the duplication of resources occurs only when they are written
+
+Forking
+
+	linux implements fork() via clone() system call
+	clone() calls do_fork()
+	do_fork() calls copy_process()
+
+	copy_process()
+
+		1. calls dup_task_struct()	- creates a new kernel stack(thread_info, task_Struct)
+									- at this point, child and parent process descriptor are identical
+
+		2. check that the new child will not exceed the resource limits on the number of processes(프로세스 수 제한) for current user
+
+		3. various members of the process descriptor(child needs to differentiate from parent) are cleared or set to initial values
+
+		4. the child's state is set to TASK_UNINTERRUPTIBLE to ensure that it does not yet run
+
+		5. calls copy_flags() - update the flags member of the task_sturct
+
+		6. calls alloc_pid() - assign available PID
+
+		7. depending on the flags passed either duplicates or share open files, fs information, signal handlers, process address space, and namespace
+
+		8. copy_process() cleans up and returns to the caller a pointer to the new child
+
+	kernel runs the child process first(in the common case of the child simply calling exec() immediately, this eliminates any COW overhead that would occur of the parent ran first and began writing to the address space)
+
+vfork()
+	vfork() system call has the same effect as fork(), except that the page table entries of the parent process are not copied.
+
+	child executes as the sole thread in the parent's address space, and the parent is blocked until the child either calls exec() or exits
+
+	Today, with copy-on-write and child-runs-first semantics, the only benefit to vfork() is not copying the parent page table entries.
+
+	implemented via a special flag to the clone() system call
+
+	when vfork() is done, the child is now executing in a new address space, and the parent is again executing in its original address space.

@@ -1,0 +1,61 @@
+Mutexes
+
+	most users of semaphores instantiated a semaphore with a count of 1 and treated them as a mutual exclusion lock
+
+	semaphores are rather generic and do not impose many usage constraints
+	-> simpler locking is harder to do, and the lack of enforced rules makes any sort of automated debugging or constraint enforcement impossible
+
+	mutex
+		- generic name to refer to any sleeping lock that enforces mutual exclusion
+
+		- in recent Linux kernels, mutex is also a specific type of sleeping lock that implements mutual exclusion
+
+		- represented by struct mutex
+
+		- it has a simpler interface, more efficient performance, and additional constraints on its use than semaphore with a count of one
+
+	- statically initialize a mutex
+		DEFINE_MUTEX(name);
+
+	- dynamically initialize a mutex
+		mutex_init(&mutex);
+
+	- locking and unlocking
+		mutex_lock(&mutex);
+		/*	critical region	*/
+		mutex_unlock(&mutex);
+
+	-> without the need to manage usage counts
+
+	the simplicity and efficiency of the mutex comes from the additional constraints
+
+	mutex has a stricter, narrower use case
+
+		- only one task can hold the mutex at a time
+
+		- whoever locked a mutex must unlock it
+		you cannot lock a mutex in one context and then unlock it in another
+		-> mutex is not suitable for more complicated synchronizations between kernel and user space
+		however, most use cases cleanly lock and unlock from the same context
+
+		- recursive locks and unlocks are not allowed
+
+		- a process cannot exit while holding a mutex
+
+		- a mutex cannot be acquired by an interrupt handler or bottom half, even with mutex_trylock()
+
+		- a mutex can be managed only via the official API
+
+	the most useful aspect of the new struct mutex is that, via a special debugging mode,
+	the kernel can programmatically check for and warn violations of these constraints
+
+	when the kernel configuration option CONFIG_DEBUG_MUTEXES is enabled,
+	a multitude of debugging checks ensure that these constraints are always upheld
+
+Semaphores Versus Mutexes
+
+	low overhead locking	-> spin lock
+	short lock hold time	-> spin lock
+	long lock hold time 	-> mutex
+	need to lock from interrupt context -> spin lock
+	need to sleep while holding lock	-> mutex

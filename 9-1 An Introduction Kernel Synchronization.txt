@@ -1,0 +1,13 @@
+An Introduction Kernel Synchronization
+
+	shared resources require protection from concurrent access because if multiple threads of execution access and manipulate the data at the same time, the threads may overwrite each other's changes or access data while it is in an inconsistent state
+
+Critical Regions and Race Conditions
+
+	critical regions(critical section): code paths that access and manipulate shared data
+
+	to prevent concurrent access during critical regions, the programmer must ensure that code executes atomically(operations complete without interruption == the entire critical region were one indivisible instruction)
+
+	race condition: two threads of execution to be simultaneously executing within the same critical region
+
+	synchronization: ensuring that unsafe concurrency is prevented and that race conditions do not occur

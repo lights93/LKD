@@ -1,0 +1,107 @@
+Interrupt Context
+
+	When executing an interrupt handler, the kernel is in interrupt context
+
+	process context
+
+		- associated with a process
+
+		- current macro points to the associated task
+
+		- can sleep/schedule
+
+	interrupt context
+
+		- not associated with a process
+
+		- current macro is not relevant
+
+		- cannot sleep/schedule
+
+		- time-critical(because interrupt handler interrupts other code)
+		-> quick and simple
+
+	before 2.6 kernel
+
+		interrupt handler did not receive their own stacks
+		instead, they share the stack of the process that they interrupted (2 pages)
+		-> frugal with what data they allocate there
+
+	after 2.6 kernel
+
+		option was added to reduce the stack size(2 pages-> 1page)
+
+		interrupt handlers were given their own stack, one stack per processor, one page in size
+		->interrupt stack!
+		-> should not care what stack setup is in use or what the size of kernel stack is
+
+Implementing Interrupt Handlers
+
+	Implementation of the interrupt handling system in Linux is architecture-dependent
+
+	path that an interrupt takes from hardware and on through the kernel
+
+		1. a device issues an interrupt by sending an electronic siganl over its bus to the interrupt controller
+
+		2. if the line is enabled,
+		the interrupt controller sends thee interrupt to the processor
+
+		3. if interrupts are not disabled in the processor,
+		the processor stops what it is doing, disable the interrupt system, and jumps to a predefined location(entry point)
+
+		4. for each interrupt line, the processor jumps to a unique location in memory and executes the code located there
+
+		5.the initial entry point saves the interrupt value and stores the current register values of interrupted task on the stack
+
+		6. the kernel calls do_IRQ()
+
+		From this point, most of the interrupt handling code is written in C
+
+	unsigned int do_IRQ(struct pt_regs regs)
+
+		pt_regs structure contains the initial register values and the interrupt value
+
+		After the interrupt line is calculated, do_IRQ() acknowledges the receipt of the interrupt and disables interrupt delivery on the line
+
+		on normal PC machines, these operations are handled by mask_and_ack_8259A()
+
+		ensures that a valid handler is registered on the line and that it is enabled and not currently executing
+
+		calls handle_IQR_event() to run the installed interrupt handlers for the line
+
+		irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
+
+			1.set IRQF_DISABLED( handler must be run with interrupts disabled)
+
+			2. each potential handler is executed in a loop
+
+			3.add_interrupt_randomnesss() is called if IRQF_SAMPLE_RANDOM was specified
+
+			4. disable the interrupts
+
+		ret_from_intr()	- written in assembly, as with the initial entry code
+
+						- checks whether a reschedule is pending(need_resched is set?)
+
+		if the kernel is returning to user-space(the interrupt interrupted a user process)
+		schedule() is called
+
+		if the kernel is returning to kernel-space(the interrupt interrupted a kernel itself)
+		schedule() is called only preempt_count is 0
+
+		After schedule() returns, or if there is no work pending, 
+		the initial registers are restored and the kernel resumes whatever was interrupted
+
+/proc/interrupts
+
+	procfs is a virtual filesystem that exists only in kernel memory and is typically mounted at /proc
+
+	reading or writing files in procfs invokes kernel functions that simulate reading or writing from a real file
+
+	first column - interrupt line
+
+	second column - counter of the number of interrupts received
+
+	third column - interrupt controller handling the interrupts
+
+	last column - device associated with this interrupt

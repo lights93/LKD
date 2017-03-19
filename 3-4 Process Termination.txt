@@ -1,0 +1,62 @@
+Process Termination
+
+	when a process terminates, the kernel releases the resources owned by the process and notifies the child's parent of its demise
+
+	generally, process destruction is self-induced. it occurs when the process calls the exit() system call
+
+	a process can also terminate involuntarily. this occurs when the process receives a signal or exception it cannot handle or ignore
+
+	regardless of how a process terminates, the bulk of work is handled by do_exit()
+
+	do_exit()
+
+		1. sets the PF_EXCITING flag in the flags member of the task_struct
+
+		2. calls del_timer_sync() to remove any kernel timers
+
+		3. if BSD process accounting is enabled, do_exit() calls acct_update_integrals() to write out accounting information
+
+		4. calls exit_mm() to release the mm_struct held by this process 
+		if the address space is not shared, the kernel then destroy it
+
+		5. calls exit_sem() - if the process is queued waiting for an IPC semaphore, it is dequeued here
+
+		6. calls exit_files() and exit_fs() to decrement the usage count of objects related to file descriptors and filesystem data
+
+		7. sets the task's exit code, stored in the exit_code member of task_struct
+
+		8. calls exit_notify() to send signals to the task's parent, reparents any of the task's children to another thread in their thread group or the init process, and sets the task's exit state, stored in exit_state in the task_struct structure, to EXIT_ZOMBIE
+
+		9. calls schedule() to switch to a new process. Because the process is now not schedulable
+		this is the last code -> do_exit() never returns
+
+		at this point, the only memory it occupies is its kernel stack, the thread_info structure, task_struct structure
+
+		after the parent retrieves the information, or notifies the kernel that it is uninterested, the remaining memory is freed
+
+Removing the Process Descriptor
+
+	cleaning up after a process and removing its process descriptor are separate
+
+	release_task()
+		1. calls __exit_signal() -> calls __unhash_process -> calls detach_pid() to remove the process from the pidhash and remove the process from the task list
+
+		2. __exit_signal() releases and remaining resources used by the now dead process and finalizes statistics and bookkeeping
+
+		3. if the task was the last member of a thread group, and the leader is a zombie, then release_task() notifies the zombie leader's parent
+
+		4. calls put_task_struct() to free the pages containing the process's kernel stack and thread_info structure and deallocate the slab cache containing the task_struct
+
+The Dilemma of the Parentless Task
+
+	solution for the parentless task is to reparent a task's children on exit to either another process in the current thread group
+	or, if that fails, the init process
+
+	do_exit() calls exit_notify() calls forget_original_parent() calls find_new_reaper()
+
+	find_new_reaper() - reparenting a child list
+	ptraced_exit_finish() - reparenting a ptraced list
+
+	when a task is ptraced, it is temporarily reparented to the debugging process
+	if the task's parent exits, it must be reparented
+	so, now keep a separate list of a process's children being ptraced

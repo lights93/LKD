@@ -1,0 +1,116 @@
+The Linux Scheduling Implementation
+
+Time accounting
+
+	All process schedulers must account for the time that a process runs
+
+	The Scheduler Entity Structure
+
+		CFS uses the scheduler entity structure, struct sched_entity defined in <liux/sched.h>, to keep track of process accounting
+
+		is embedded in the process descriptor, struct task_struct, as a member variable named se
+
+	The Virtual Runtime
+
+		vruntime - stores the virtual runtime of a process, which is actual runtime weighted by the number of runnable process
+				 - decoupled from the timer tick(because units are nanoseconds)
+
+		in ideal processor, all same
+
+		CFS uses vruntime to account for how long a process has run and thus how much longer it ought to run
+
+		update_curr()	- manages this time accounting
+						- calculates the execution time of the current process and stores that value in delta_exec
+						-passes that runtime to  __update_curr(), which weights the time by the number of runnable process
+
+		-> vruntime is an accurate measure of the runtime of a given process and an indicator of what process should run next
+
+Process Selecion
+
+	when CFS is deciding what process to run next, it picks the process with the smallest vruntime
+
+	CFS uses a red-black tree(self-balancing binary search tree) to manage the list of runnable processes and efficiently find the process with the smallest vruntime
+
+	Picking the Next Task
+
+		run the process represented by the leftmost node in the rbtree
+		-> __pick_next_entity(), defined in kernel/sched_fair.c
+
+		__pick_next_entity() does not traverse the tree to find the leftmost node, because the value is cached by rb_leftmost
+		-> more efficient
+
+	Adding Processes to the Tree
+
+		occur when a process become runnable(wakeup) or is first created via fork()
+
+		enqueue_entity()	- Adding processes to the tree
+							- updates the runtime and other statistics
+							- invokes __enqueue_entity()
+
+		__enqueue_entity()	- enqueue an entity into the rb-tree
+
+	Removing Processes from the Tree
+
+		happens when a process blocks(becomes unrunnable) or terminates
+
+		dequeue_entity() -> __dequeue_entity()
+
+The Scheduler Entry Point
+
+	schedule(), defined in kernel/sched.c invoke the process scheduler
+	schedule() finds the highest priority scheduler class and asks it what to run next
+
+	schedule() invocate pick_next_task()
+
+	pick_next_task()	- selects the highest priority process in the highest priority class
+						- optimization(if all runnable processes are provided by CFS)
+						- calls pick_next_entity() calls __pick_next_entity()
+
+Sleeping and Waking up
+
+	Sleeping	- waiting for some event
+				- without sleeping, this state implemented as busy looping
+				- common reason to sleep is file I/O or another hardware event
+				- puts itself on a wait queue, removes itself from the rb-tree, and calls schedule()
+
+	Wait Queues
+		a simple list of processes waiting for an event to occur
+
+		represented in the kernel by wake_queue_head_t
+
+		created statically via DECLARE_WAITQUEUE()
+		or dynamically via init_waitqueue_head()
+
+		steps to add itself to a wait queue
+
+			1. creates a wait queue entry via macro DEFINE_EXIT()
+
+			2. adds itself to a wait queue via add_wait_queue()
+
+			3. calls prepare_to_wait() to change the process state to either TASK_INTERRUPTIBLE OR TASK_UNINTERRUPTIBLE
+
+			4. if TASK_INTERRUTIBLE, a signal wakes the process up.
+			check and handle signals
+
+			5. when the task awakens, it again checks whether the condition is true
+			if it is, it exits the loop
+			otherwise, it again calls schedule()
+
+			6. now that the condition is true, the task sets itself to TASK_RUNNING
+			removes itself from the wait_queue via finish_wait()
+
+		inotify_read()	- handles reading from the inotify file descritor
+						- checks for the condition in the body of while() loop
+						because checking the condition is complicated and required grabbing locks
+
+	Waking up
+	
+		wake_up()	- wakes up all the task waiting on the given wait queue
+					- calls try_to_wake_up(): sets the task's state to TASK_RUNNING
+
+					- calls enqueue_task(): add the task to the rb-tree,
+					and sets need_resched if the awakened task's priority is higher than the priority of current task
+
+					- calls activate_task(): add the task to a runqueue
+
+					-__remove_wait_queue(): removes the task from the wait queue

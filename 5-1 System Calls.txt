@@ -1,0 +1,28 @@
+System Calls
+
+Communicating with the Kernel
+
+	System call - layer between the hardware and user-space processes
+
+	purpose of system call
+		1. provides an abstracted hardware interface for userspace
+
+		2. ensure system security and stability
+
+		3. allows for the virtualized system provided to processes
+
+	In Linux, system calls are the only means user-space has of interfacing with the kernel
+
+APIs, POSIX, and the C Library
+
+	 API(Application Programming Interface)	- defines a set of programming interfaces used by applications
+	 										- can be implemented as a system call
+
+	 POSIX	- one of the common application programming interfaces in the UNIX world
+	 		- excellent example of the relationship between APIs and system calls
+
+	 system call interface in Linux is provided in part by the C library
+
+	 C library implements the main API, including the standard C library and the system call interface
+
+	 it is important for the kernel to keep track of the potential uses of a system call and keep the system call as general as possible

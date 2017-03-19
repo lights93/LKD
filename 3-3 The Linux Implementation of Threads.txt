@@ -1,0 +1,32 @@
+The Linux Implementation of Threads
+
+	Linux implements all threads as standard process
+	a thread is merely a process that shares certain resources with other processes.
+
+	TO other OS : threads are an abstraction to provide lighter, quicker execution unit than the heavy process
+
+	TO linux : threads are simply a manner of sharing resources between processes
+
+Creating Threads
+
+	Threads are created the same as normal tasks, with the exception that the clone() is passed flags corresponding to the specific resources to be shared
+
+	Thread - clone(CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND, 0)
+
+	fork() - clone(SIGCHLD, 0)
+
+	vfork() - clone(CLONE_VFORK | CLONE_VM | SIGCHLD, 0)
+
+Kernel Threads
+
+	The kernel accomplishes perform some operations in the background via kernel threads
+
+	kernel threads do not have an address space(mm pointer is NULL)
+
+	they operate only in kernel-space and do not context switch into user-space
+
+	kernel thread can be created only by another kernel thread
+
+	kernel thread can be created and made runnable with kthread_run()
+
+	kthread_run() - kthread_create() + wake_up_process()

@@ -1,0 +1,120 @@
+Semaphores
+
+	semaphores in Linux are sleeping locks
+	when a task attempts to acquire a semaphore that is unavailable,
+	the semaphore places the task onto a wait queue and puts the task to sleep
+	when the semaphore becomes available, one of the tasks on the wait queue is awakened sh that it can then acquire a semaphore
+
+	semaphore provides better processor utilization than spin locks because there is no time spent busy looping
+	semaphores have much greater overhead than spin locks
+
+	conclusion from the sleeping behavior of semaphores
+
+		- because the contending tasks sleep while waiting for the lock to become available,
+		semaphores are well suited to locks that are held for a long time
+
+		- semaphores are not optimal for locks that are held for short periods because the overhead of sleeping,
+		maintaining the wait queue, and waking back up
+
+		- because a thread of execution sleeps on lock contention, 
+		semaphores must be obtained only in process context because interrupt context is not schedulable (?????)
+
+		- you can sleep while holding a semaphore because you will not deadlock when another process acquires the same semaphore
+		(int will just go to sleeping and eventually let you continue)
+
+		- you cannot hold a spin lock while you acquire a semaphore
+
+	if your code needs to sleep, which is often the case when synchronizing with user-space, semaphores are the sole solution
+	when you do have a choice, the decision between semaphores and spin lock should be based on lock time
+
+	unlike spin locks, semaphores do not disable kernel preemption, code holding a semaphore can be preempted
+	-> semaphores do not adversely affect scheduling latency
+
+Continuing and Binary Semaphores
+
+	useful feature of semaphores is that they can allow for an arbitrary number of simultaneous lock holders
+
+	usage count(count): the number of permissible simultaneous holders of semaphores can be set at declare time
+
+	binary semaphore(mutex)	- only one lock holder at a time
+							- used to enforce mutual exclusion
+							- used much in the kernel
+
+	counting semaphore	- enables at most count holders of the lock at a time
+						- used to enforce limits in certain code
+						- not used much in the kernel
+
+	semaphore supports 2 atomic operations
+
+		down()	- P() means probe
+				- used to acquire a semaphore by decrementing the count by one
+				- if the new count >= 0, 
+				the lock is acquired and the task can enter critical region
+				- if the count < 0, the task is placed on a wait queue, and the processor moves on to something else
+
+		up()	- V() means increment
+				- used to release a semaphore upon completion of a critical region
+				- the method increments the count value
+				if, the semaphore's wait queue is not empty, one of the waiting tasks is awakened and allowed acquire the semaphore
+
+Creating and Initializing Semaphores
+
+	semaphore implementation is architecture-dependent
+
+	struct semaphore type represents semaphores
+
+	statically declared semaphores
+		struct semaphore name;
+		sema_init(&name, count);
+
+	shortcut to create the more common mutex
+		static DECLARE_MUTEX(name);
+
+	dynamically created semaphore
+		sema_init(sem, count); // sem is a pointer
+
+	dynamically created mutex
+		init_MUTEX(sem);
+
+Using Semaphores
+
+	down_interruptible() - attempts to acquire the given semaphore
+
+	if the semaphore is unavailable, it places the calling process to sleep in the TASK_INTERRUPTIBLE
+
+	if the task receives a signal while waiting for the semaphore, it is awakened and down_interruptible() returns -EINTR
+
+	down() places the task in the TASK_UNINTERRUPTIBLE when it sleeps
+
+	therefore, down_interruptible() is much more common than down()
+
+	down_trylock() - try to acquire the given semaphore without blocking
+	if the semaphore is already held, immediately returns nonzero
+	otherwise, it returns zero and successfully hold the lock
+
+	up() - release a given semaphore
+
+Reader-Writer Semaphores
+
+	reader-writer semaphores are preferred over standard semaphores
+
+	reader-writer semaphores are represented by struct rw_semaphore, declared in <linux/rwsem.h>
+
+	statically declared reader-writer
+		static DECALRE_RWSEM(name);
+
+	dynamically declared reader-writer
+		init_rwsem(struct rw_semaphore *sem)
+
+	all reader-writer semaphore are mutexes
+	any numbers of readers can concurrently hold the read lock, so long as there are no writers
+	conversely, only a sole writer(with no readers) can acquire the write variant of the lock
+
+	all reader-writer locks use uninterruptible sleep, so there is only one version of each down()
+
+	implementations of down_read_trylock() and down_write_trylock() are provided
+
+	reader-writer semaphore have a unique method that reader-writer spin lock do not have
+	->downgrade_write() - atomically converts an acquired write lock to a read lock
+
+	supporting the reader-writer mechanisms has a cost, and it is worthwhile only if your code naturally splits along a reader/writer boundary

@@ -1,0 +1,87 @@
+Bottom Halves and Deferring Work
+
+Bottom Halves
+
+	job of bottom halves is to perform any interrupt-related work not performed by the interrupt handler
+
+	how to divide the work between the top and bottom half
+		-if the work is time sensitive, perform it in the interrupt handler
+
+		if the work is related to the hardware, perform it in the interrupt handler
+
+		if the work needs to ensure that another interrupt, perform it in the interrupt handler
+
+		for everything else, consider performing the work in the bottom half
+
+Why Bottom Halves
+
+	minimizing the time spent with interrupts disabled is important for system response and performance
+
+	interrupt handlers run asynchronously with respect to other code
+	-> work to minimize how long interrupt handlers run
+
+	the point of a bottom half is not to do work at some specific point in the future, 
+	but simply to defer work any point in the future when the system is less busy and interrupts are again enabled
+
+	often, bottom halves run immediately after the interrupt returns
+	they run with all interrupts enabled
+
+	Linux is not alone in separating the processing of hardware interrupts into 2 parts
+	this design keeps system latency low by running with interrupts disabled for as little time as necessary
+
+A world of bottom halves
+
+	multiple mechanisms are available for implementing a bottom half
+
+	over the course of Linux's history, there have been many bottom-half mechanisms
+
+	The Original "Bottom Half"
+
+		in the beginning, Linux provided only the "bottom half" for implementing bottom halves
+		-> BH(call it to avoid confusion with the generic term bottom half)
+
+		BH provided a statically created list of 32 bottom halves for entire system
+		top half could mark whether the bottom half would run by setting a bit in 32-bit register
+
+		each BH was globally synchronized
+		-> no two could run at the same time, even on different processors
+
+		easy to use, but inflexible
+
+	Task Queues
+
+		the kernel developers introduced task queues both as a method of deferring work and as a replacement for the BH mechanism
+
+		the kernel defined a family of queues
+		each queue contained a linked list of functions to call
+		the queued functions were run at certain times, depending on which queue they were in
+		drivers could register their bottom halves in the appropriate queue
+
+		this worked fairly well, but it was still too inflexible
+		it also was not lightweight enough for performance critical subsystems
+
+	Softirqs and Tasklets
+
+		during 2.3 development series, the kernel developers introduced softirqs and tasklets
+		with the exception of compatibility with existing driver, softirqs and tasklets could completely replace the BH interface
+
+		softirqs are a set of statically defined bottom halves that can run simultaneously on any processor
+		2 of the same type can run concurrently
+
+		tasklets are flexible, dynamically created bottom halves built on top of softirqs
+		2 different tasklets can run concurrently on different processors, but 2 of the same type of tasklet cannot run simultaneously
+
+		softirqs are useful when performance is critical
+		because 2 of the same softirq can run at the same time
+
+		while developing the 2.5 kernel, BH interface was finally toseed to the curb because all BH users were converted to the other bottom-half interfaces
+
+		task queue interface was replaced by the work queue interface
+		work queues are a simple yet useful method of queuing work to later be performed in process context
+
+		2.6 has 3 bottom-half mechanisms : softirqs, tasklets, work queues
+
+Kernel Timers
+
+	timers defer work for a specified amount of time
+	-> use timers to defer work until at least a specific time has elapsed

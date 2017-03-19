@@ -1,0 +1,51 @@
+Ordering and Barriers
+
+	it is sometimes a requirement that memory-reads(loads) and memory-writes(stores) issue in  your program code
+
+	complicating these issues is the fact that both the compiler and processor can reorder reads and writes for performance reasons
+	thankfully, all processors that do reorder reads or writes provide machine instructions to enforce ordering requirements
+
+	barriers - instruct the compiler not to reorder instructions around a given point
+
+	on some processors the following code may allow the processor to store the new value in b before it stores the new value in a
+		a=1;
+		b=2;
+	both the compiler and processor see no relation between a and b
+
+	compiler would perform this reordering at compile time
+	the reordering would be static, and the resulting object code would simply set b before a
+
+	processor could perform the reordering dynamically during execution by fetching and dispatching seemingly unrelated instructions in whatever order it feels is best
+
+	the processor would never reorder writes such as the following because there is clearly a data dependency between a and b
+		a=1;
+		b=a;
+
+	rmb()	- provides a read memory barrier
+			- ensures that no loads are reordered across the rmb() call
+			-no loads prior to the call will be reordered to after the call, and no loads after the call will be reordered to before the call
+
+	wmb()	- provides a write barrier
+
+	mb()	- provides both a read barrier and write barrier
+
+	read_barrier_depends()
+		- provides a read barrier but only for loads on which subsequent loads depend
+		- all read prior to the barrier are guaranteed to complete before any reads after the barrier that depend on the reads prior to the barrier
+		- quicker than rmb()
+
+	macros smp_rmb(), smp_wmb(), smp_mb() and smp_read_barrier_depends() provide a useful optimization
+
+	on SMP kernels, they are defined as the usual memory barriers,
+	whereas on UP kernels, they are defined only as a compiler barrier
+
+	barrier()
+		- prevents the compiler from optimizing loads or stores across the call
+
+	memory barriers also function as compiler barriers,
+	but a compiler barrier is much lighter in weight than a memory barrier
+
+	indeed, a compiler barrier is practically free, because it simply prevents the compiler from possibly rearrange things
+
+	actual effects of the barriers vary for each architecture
+	-> you can use the appropriate memory barrier for the worst case and your code will compile optimally for your architecture

@@ -1,0 +1,40 @@
+Which Bottom Half Should I Use
+
+	Softirqs
+
+		-provide the least serialization
+		-ensure that shared data is safe because 2 or more softirqs of the same type may run concurrently on different processors
+		-the fastest alternatives for timing critical and high-frequency uses
+
+	Tasklets
+
+		-simpler interface
+		-2 tasklets of the same type might not run concurrently, they are easier to implement
+		-effectively softirqs that do not run concurrently
+
+	Work queues
+
+		- if deffered work needs to run in process context, only choice is work queues
+		-involves highest overhead(because context switching)
+
+	in term of ease of use, work queues take the crown
+	next, tasklets, which also have a simple interface
+	last, softirqs, which need to be statically created and require careful thinking with their implementation
+
+	schedulable + sleep -> work queues
+	schedulable -> tasklets
+	X(scalability) -> softirqs
+
+Locking Between the Bottom Halves
+
+	need to understand that it is crucial to protect shared data from concurrent access while using bottom halves, even on a single processor machine
+
+	one of the benefits of tasklets is that they are serialized with respect to themselves
+	the same tasklet will not run concurrently, even on 2 different processors
+	when 2 different tasklets share the same data, requires proper locking
+
+	softirqs provide no serialization, all shared data needs an appropriate lock
+
+	if process context code and a bottom half share data, you need to disable bottom-half processing and obtain a lock before accessing the data
+
+	any shared data in a work queue requires locking

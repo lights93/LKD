@@ -1,0 +1,45 @@
+Sequential Locks
+
+	sequential lock(seq lock) : provides a simple mechanism for reading and writing shared data
+
+	it works by maintaining a sequence counter
+
+	whenever the data in questions is written to, a lock is obtained and a sequence number is incremented
+
+	prior to and after reading the data, the sequence number is read
+	if the values are the same, a write did not begin in the middle of the read
+
+	if the values are even, a write is not underway
+
+	to define a seq lock
+		seqlock_t mr_seq_lock = DEFINE_SEQLOCK(mr_seq_lock);
+
+	write path
+		write_seqlock(&mr_seq_lock);
+		/*	write lock is obtained	*/
+		write_sequnlock(&mr_seq_lock);
+
+	read path(different)
+		unsigned long seq;
+
+		do{
+			seq = read_seqbegin(&mr_seq_lock);
+			/* read data here */
+		}while(read_seqentry(&mr_seq_lock, seq));
+
+	seq locks are useful to provide a lightweight and scalable lock for use with many readers and a few writers
+
+	seq locks favor writers over readers
+	an acquisition of the write lock always succeed as long as there are no other writers
+	readers do not affect the write lock, as is the case with reader-writer spin locks and semaphores
+
+	seq locks are ideal when your locking needs meet most or all these requirements
+
+		- your data has a lot of readers
+		- your data has few writers
+		- you want to favor writers over readers and never allow readers to starve writers
+		- your data is simple, cannot be made atomic(???????????)
+
+	prominent user of the seq lock is jiffies(stores a Linux machine's uptime)
+	jiffies hold a 64-bit count of the number of clock ticks since the machine booted
+	on machines that cannot atomically read the full 64-bit jiffies_64 variable, get_jiffies_64() is implemented using seq locks

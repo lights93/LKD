@@ -1,0 +1,68 @@
+Preemption and Context Switching
+
+	Context Switching is handled by context_switch()
+
+	context_switch()
+
+		calls switch_mm() - switch the virtual memory mapping from the previous process's to that of the new process
+
+		calls switch_to()	- switch the processor state from the previous process's to the current's
+							- saving and restoring stack information and the processor registers 
+							and any other architecture-specific state must be managed and restored on a per-process basis
+
+	need_resched flag	- signify whether a reschedule should be performed
+						- set by scheduler_tick() when a process should be preempted
+						- set by try_to_wake_up() when a process that has a higher priority than the currently running process is awakened
+						- message to the kernel that the scheduler should be invoked as soon as possible
+						- upon returning to user-space or returning from an interrupt, check the flag
+						if it is set, the kernel invokes the scheduler
+						- per-process, not global, in the process descriptor
+						-before 2.6 : in task_struct, after 2.6: in thread_info
+
+	User Preemption
+
+		occurs when the kernel is about to return to user-space, need_resched is set -> scheduler is invoked
+
+		user preemption can occur	-when returning to user-space from a system call
+									-when returning to user-space from an interrupt handler
+
+	Kernel Preemption
+
+		in 2.6 kernel, the Linux kernel became preemptive,
+		so long as the kernel is in a state in which it is safe to reschedule
+
+		locks are used as markers of regions of nonpreemtibility
+
+		preempt_count	- in thread_info
+						- begins at 0, increments once for each lock that is acquired 
+						and decrements once for each lock that is released
+						- when 0, preemptible
+
+		preempt_count is 0, and need_resched is set, then it is safe to preempt
+
+		kernel preemption can occur	- when an interrupt handler exits, before returning to kernel space
+									- when kernel code becomes preemptible again
+									- if a task in the kernel explicitly calls schedule()
+									- if a task in the kernel blocks
+
+Real-Time Scheduling Policies
+
+	real-time policies are managed by a special real-time scheduler, defined in kernel/sched_rt.c
+
+	SCHED_FIFO	- implements FIFO scheduling algorithm without timeslices
+				- If a SCHED_FIFO task is runnable, all tasks at a lower priority cannot run until it becomes unrunnable
+				- when a SCHED_FIFO task becomes runnable, 
+				it continues to run until it blocks or explicitly yields the processor
+
+	SCHED_RR	- SCHED_FIFO with timeslice
+				- timeslice is used to allow only rescheduling of same-priority process
+				- If a SCHED_RR task is runnable, all tasks at a lower priority cannot run until it becomes unrunnable
+
+	both real-time scheduling implement static priorities
+	-> ensures that a real-time process at a given priority always preempts a process at a lower priority
+
+	linux makes no guarantees on the capability th schedule real-time tasks
+
+	Real-time priorities range 0~MAX_RT_PRIO-1
+
+	nice value -20~19->100~139 to share with real-time priorities 

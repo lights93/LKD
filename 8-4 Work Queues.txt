@@ -1,0 +1,173 @@
+Work Queues
+
+	work queues defer work into a kernel thread
+	-> always runs in process context
+
+	work queues are schedulable and can sleep
+
+	if the deferred work needs to sleep, work queues are used
+
+	the usual alternative to work queues is kernel threads
+	because the kernel developers frown upon creating a new kernel thread, work queues are strongly preferred
+
+	work queues are useful for situations in which you need to allocate a lot of memory, obtain a semaphore, or performed I/O
+
+Implementing Work Queues
+
+	work queue subsystem is an interface for creating kernel threads(worker thread) to handle work queued from elsewhere 
+
+	work queues let your driver create a special worker thread thread to handle deferred work
+	however, the work queue subsystem Implements and provides a default worker for handling work
+	-> a work queue is a simple interface for deferring work to a generic kernel thread
+
+	default worker threads are called events/n, n is the processor number
+	-> there is one per processor
+
+	nothing stops code from creating its own worker thread
+	this might be advantageous if you perform large amounts of processing in the worker thread
+	this also lightens the load on the default threads, which prevents starving the rest of the queued work
+
+	Data Structures Representing the Threads
+
+		worker threads are represented by the workqueue_struct structure
+
+		struct workqueue_struct{
+			struct cpu_workqueue_struct cpu_wq[NR_CPUS]
+			struct list_head list
+			const char *name
+			int singlethread
+			int freezable
+			int rt
+		}
+
+		struct cpu_workqueue_struct{
+			spinlock_t lock - lock protecting this structure
+
+			struct list_head worklist - list of work
+			wait_queue_head_t more_work
+			struct work_struct *current_struct
+
+			struct workqueue_struct *wq -associtaed workqueue struct
+			task_t *thread - assiciated thread
+		}
+
+		there is one of these structures per worker thread, per processor, on a given machine
+
+		each type of worker thread has one workqueue_struct associated to it
+		inside, there is one cpu_workqueue_struct for every thread and, every processor
+
+	Data Structures Representing the work
+
+		all worker thread are implemented as normal kernel thread running the worker_thread()
+
+		when work is queued, the thread is awakened and processes the work
+		when there is no work left to process, it goes back to sleep
+
+		the work is represented by the work_structure defined in <linux/workqueue.h>
+
+		struct work_struct {
+			atomic_long_t data
+			struct list_head entry
+			work_func_t func
+		}
+
+		these structures are strung into a linked list, one for each type of queue on each processor
+
+		worker_thread()
+
+			1. thread marks itself sleeping(the task's state is set to TASK_INTERRUPTIBLE) and adds itself to a wait queue
+
+			2. if the linked list of work is empty, the thread calls schedule() and goes to sleep
+
+			3. if the list is not empty, thread marks itself TASK_RUNNING and removes itself from the wait_queue
+
+			4. if the list is nonempty, the thread calls run_workqueue() to perform the deffered work
+
+		run_workqueue()
+
+			1. while the list is not empty, it grabs the next entry in the list
+
+			2. it retrieves the function that should be called, func and its argument, data
+
+			3. it removes this entry from the list and clears the pending bit in the structure(work_struct ??) itself
+
+			4. in invokes the function
+
+			5. repeat
+
+	Work Queue Implementation Summary
+
+		the relationship between the different data structures is admittedly a bit convoluted
+
+		at the highest level, there are worker threads
+		there can be multiple types of worker threads
+		there is one worker thread per processor of a given type
+		by default, there is the events worker thread
+		each worker thread is represented by the cpu_workqueue_struct
+
+		workqueue_struct represents all the worker threads of a given type
+
+		for example, assume 4 processor computer
+		then, there are 4 event threads(cpu_workqueue_struct) and 4 falcon threads(cpu_workqueue_struct)
+		there is one workqueue_struct for the events and one for falcon type
+
+		approach from the bottom
+
+			driver creates work, which it wants to defer to later
+			work_struct represents this work
+
+			work is submitted to a specific worker thread
+
+Using Work Queues
+
+	Creating Work
+
+		DECLARE_WORK(name, void (*func)(void *), void *data)
+			this statically createa a work_struct named name with handler function func and argument data
+
+		INIT_WORK(struct work_struct *work, void (*func)(void *), void *data)
+			this dynamically initializes the work queue pointed by work with handler function func and argument data
+
+	Your Work Queue Handler
+
+		void work_handler(void *data)
+			a worker thread executes this function, and thus, the function runs in process context
+
+		the work handlers cannot access user-space memory because there is no associated user-space memory map for kernel threads
+
+		locking between work queues or other parts of the kernel is handled just as with other process context code
+
+	Scheduling Work
+
+		schedule_work(&work) - queue a given work's handler function with the default events worker threads
+
+		the work is scheduled immediately and is run as soon as the events worker thread on the current processor wakes up
+
+		schedule_delayed_work(&work, delay)
+		 	work_struct represented by &work will not execute for at least delay timer ticks into the future
+
+	Flushing Work
+
+		sometimes, you need to ensure that a given batch of work has completed before continuing
+		other places in the kernel also might need to make certain no work is pending, to prevent race conditions
+
+		void flush_scheduled_work(void) - waits until all entries in the queue are executed before returning
+
+		this function does not cancel delayed work
+
+		int cancel_delayed_work(struct work_struct *work) -cancels the pending work
+
+	Creating New Work Queues
+
+		struct workqueue_struct *create_workqueue(const char *name)
+			this function creates all the worker threads(one for each processor in the system) and prepares them to handle work
+
+		int queue_work(struct workqueue_struct *wq, struct work_struct *work)
+
+		int queue_delayed_work(struct workqueue_struct *wq, struct work_struct *work, unsigned long delay)
+
+		they work on the given work queue and not the default events queue
+
+		flush_workqueue(struct workqueue_struct *wq)
+
+	

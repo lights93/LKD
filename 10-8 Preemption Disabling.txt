@@ -1,0 +1,29 @@
+Preemption Disabling
+
+	a task can begin running in the same critical region as a task that was preempted
+	to prevent this, the kernel preemption code uses spin locks as markers of nonpreemptive regions
+
+	in reality, some situations do not require a spin lock, but do need kernel preemption disabled
+	the most frequent of these situations is per-processor data
+	if the data is unique to each processor, their might be no need to protect it with a lock because only that one processor can access the data
+	the variable could be accessed pseudo-concurrently by multiple processes
+
+	to solve this, kernel preemption can be disabled via preempt_disable()
+	the call is nestable(call it any number of times)
+
+	for each call, a corresponding call to preempt_enable() is required
+
+	preempt_disable();
+	/* preemption is disabled */
+	preempt_enable();
+
+	the preemption count stores the number of held locks and preempt_disable() calls
+	if the number is 0, the kernel is preemptive
+	if the number > 0, the kernel is nonpreemptive
+	preempt_count() returns this value
+
+	as a cleaner solution to per-processor data issues, you can obtain the processor number via get_cpu()
+
+	cpu=get_cpu();
+	/* manipulate per-processor data */
+	put_cpu()

@@ -1,0 +1,49 @@
+Deadlocks
+
+	deadlock - condition involving one or more threads of execution and one or more resources, such that each thread waits for one of the resources, but all the resources are already held
+
+	ABBA deadlock(deadly embrace) - each thread is waiting for the other, and neither thread will ever release its original lock
+	->neither lock will become available
+
+	although it is difficult to prove that code is free of deadlocks, you can write deadlock-free code
+
+	a few simple rules go a long way
+
+		-implement lock ordering : this prevents the deadly embrace deadlock
+
+		-prevent starvation : does this code always finish?
+
+		-do not double acquire the same lock
+
+		-design for simplicity : complexity in your locking scheme invites deadlocks
+
+Contention and Scalability
+
+	lock contention(contention) : a lock currently in use but that another thread is trying to acquire
+
+	a highly contended lock can become a bottleneck in the system, quickly limiting its performance
+
+	scalability : measurement of how well a system can be expanded
+
+	we can discuss scalability in relation to virtually any component of a computer to which we can attach a quantity
+
+	the scalability of Linux on a large number of processors has increased dramatically in the time since multiprocessing support was introduced in the kernel 2.0
+	today, in 2.6 kernel, kernel locking is very fine-grained and scalability is good
+
+	granularity of locking is a description of the size or amount of data that a lock protects
+
+	most locks start off fairly coarse and are made more fine-grained as lock contention proves to be as a problem
+
+	early in 2.6 series, O(1) scheduler introduced per-processor runqueues, each with a unique lock
+	-> locking evolved from a single global lock to separate locks for each processor
+	this was important optimization, because the runqueue lock was highly contended on large machines, essentially serializing the entire scheduling process down to a single processor executing in the scheduler at a time
+
+	later in 2.6 series, CFS scheduler improved scalability further
+	Generally, this scalability improvement is a good thing because it improves Linux's performance on larger and more powerful systems
+
+	rampant scalability improvements can lead to a decrease in performance on smaller SMP and UP machines
+	because smaller machines may not need such fine-grained locking but will nonetheless lead to put up with the increased complexity and overhead
+
+	too coarse results in poor scalability
+	too fine results in wasteful overhead
+	->start simple and grow in complexity only as needed

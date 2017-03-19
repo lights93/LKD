@@ -1,0 +1,73 @@
+Locking
+
+	it is ludicrous for architectures to provide instructions to support the indefinitely sized critical regions
+
+	lock provides a mechanism for preventing access to a resource while another thread of execution is in the marked region
+
+	lock prevents concurrency and protects from race condition
+
+	locks are advisory and voluntarily
+
+	locks come in various shapes and sizes
+		-busy wait
+		-sleep until the lock becomes available
+
+	lock does not solve the problem
+	it simply shrinks the critical region down to just the lock and unlock code
+	-> still a potential race
+
+	locks are implemented using atomic operations that ensure no race exists
+	test and set: tests the value and sets it to a new value only if it is zero
+
+	on x86, called compare and exchange
+
+Causes of Concurrency
+
+	because a process can be preempted at any time and another process can be scheduled onto the processor, a process can be involuntarily preempted in the middle of accessing a critical region
+
+	pseudo concurrency: in which 2 things do not actually happen at the same time but interleave with each other such that might as well
+
+	true concurrency: two processes can actually be executed in a critical region at the exact same time (in symmetrical multiprocessing machine)
+
+	they both result in the same race conditions and require the same sort of protection
+
+	kernel has similar causes of concurrency
+
+		- interrupts: an interrupt can occur asynchronously at almost any time
+
+		- softirqs and tasklets: the kernel can raise on schedule a softirq or tasklet at almost any time
+
+		- kernel preemption: one task can preempt another
+
+		- sleeping and synchronization with user space : a task in the kernel can sleep and thus invoke the scheduler, resulting in the running of a new process
+
+		-symmetrical multiprocessing : two or more processors can execute kernel code at exactly the same time
+
+	hard part is identifying these conditions and realizing that to prevent concurrency, you need some form of protection
+
+	always design proper locking into your code from the beginning
+
+Knowing What to Protect
+
+	Identifying what data specifically needs protection is vital
+	because any data that can be accessed concurrently almost assuredly needs protection, it is often easier to identify what data does not need protection and work from there
+
+	most global kernel data structures do
+	if anyone else can see it, lock it!
+	lock data, not code
+
+	whenever you write kernel code, you should ask yourself these questions
+
+		-is the data global?
+
+		-is the data shared between process context and interrupt context?
+
+		- if a process is preempted while accessing this data, can the newly scheduled process access the same data?
+
+		- can the current process sleep on anything? if it does, in what state does that leave any shared data
+
+		- what prevents the data from being freed out from under me?
+
+		- what happens if this function is called again on another processor?
+
+		-given the proceeding points, how am i going to ensure that my code is safe from concurrency?

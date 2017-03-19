@@ -1,0 +1,110 @@
+Softirqs
+
+Implementing Softirqs
+
+	Softirqs are statically allocated at compile time
+
+	Softirqs are represented by the softirq_action structure defined in <linux/interrupt.h>
+
+	static struct soft sofirq_action softirq_vec[NR_SOFTIRQS] : 32-entry array
+		each registered softirq consumes one entry in the array
+		-> there are NR_SOFTIRQS registered softirqs
+
+		number of registered softirqs is statically determined at compile time and cannot be changed dynamically
+
+	The Softirq Handler
+
+		void softirq_handler(struct softirq_action *)
+
+			when the kernel runs a sofirq handler, it executes this action function with a pointer to the corresponding softirq_action structure as its lone argument
+
+			my_softirq->action(my_softirq)
+
+			the kernel passes the entire structure to the softirq handler enables future additions to the structure without requiring a change in every softirq handler
+
+			a softirq never preempts another softirq
+			the only event that can preempt a softirq is an interrupt handler
+
+	Executing softirqs
+
+		a registered softirq must be marked before it will execute
+		-> raising the softirq
+
+		pending softirqs are checked for and executed in the following places
+
+			- in the return from hardware interrupt code path
+
+			- in the ksoftirqd kernel thread
+
+			-in any code that explicitly checks for and executes pending softirqs, such as the networking system
+
+		softirq execution occurs __do_softirq() ivoked by do_softirq()
+
+		__do_softirq()
+
+			1. sets the pending local variable to the value returned by the local_softirq_pending() macro
+
+			2. pending bitmask of softirqs is saved, it clears the actual bitmask
+
+			3. the pointer h is set to the first entry in the softirq_vec
+
+			4. if the first bit in pending is set, h->action(h) is called
+
+			5. the pointer h is incremented by one so that it now points to the second entry in the softirq_vec array
+
+			6. bitmask pending is right-shifted by one. 
+			->second bit is now the first
+
+			7. repeat the previous step
+
+			8. continue repeating until pending is zero
+			-> ensure h always points to a valid entry in softirq_vec
+
+Using Softirqs
+
+	softirqs are reserved for the most timing-critical and important bottom-half processing on the system
+
+	kernel timers and tasklets are built on top of softirqs
+
+	for timing-critical applications that can do their own locking in an efficient way, softirqs might be the correct solution
+
+	Assigning an Index
+
+		declare softirqs statically at compile time via an enum in <linux/interrupt.h>
+
+		the kernel users this index, as a relative priority
+		lower numerical value -> higher priority
+
+		creating a new softirq includes adding a new entry to this enum
+
+		when adding a new softirq, need to insert the new entry depending on the priority you want to give it
+
+	Registering Your Handler
+
+		softirq handler is registered at run-tine via open_softirq(softirq's index, its handler function)
+
+		the softirq handlers run with interrupts enabled and cannot sleep
+		while a handler runs, softirqs on the current processor are disabled
+
+		another processor can execute softirqs
+
+		If the same softirq is raised again while it is executing, another processor can run it simultaneously
+		->needs proper locking
+		- most softirq handlers resort to per-processor data and other tricks to avoid explicit locking and provide excellent scalability
+
+		the reason to use softirqs is scalability
+
+		Raising Your Softirqs
+
+			to mark it pending, si it is run at the next invocation of do_softirq(), call raise_softirq()
+
+			raise_softirq(NET_TX_SOFTIRQ)
+
+				-raises the NET_TX_SOFTIRQ softirq
+				its handler, net_tx_action() disable interrupts prior to actually raising the softirq and then restores them to their previous state 
+
+			if interrupts are already off, the function raise_softirq_irqoff() can be uses as a small optimization
+
+			Softirqs are most often raised from within interrupt handlers 
+
+			when processing interrupts, the kernel invokes do_softirq(). the softirq then runs and picks up where the interrupt handler left off

@@ -1,0 +1,124 @@
+Spin Locks
+
+	in real life, critical regions can span multiple function
+
+	because simple atomic operations are clearly incapable of providing the needed protection, a more general method of synchronization is needed
+	-> locks
+
+	spin lock: lock that can be held by at most one thread of execution
+
+	contended: it is already held
+
+	spinning(busy loop) prevents more than one thread of execution from entering the critical region at any one time
+
+	contended spin lock causes threads to spin(wasting processor time) while waiting for the lock to become available is important
+
+	nature of spin lock: a lightweight single-holder lock that should be held for short durations
+
+	alternative to spin lock is to put the thread to sleep and wake it up when it becomes available
+	this incurs overhead(2 context switch to switch out and back into the blocking thread)
+
+	therefore, it is wise to hold spin locks for less than the duration of 2 context switches
+
+Spin Lock Methods
+
+	spin locks are architecture-dependent and implemented in assembly
+
+	DEFINE_SPINLOCK(mr_lock)
+	spin_lock(&mr_lock)
+	/* critical region ... */
+	spin_unlock(&mr_lock)
+
+	this provides the needed protection from concurrency on multiprocessing machines
+	on uniprocessor machines, they simply act as markers to disable and enable kernel preemption
+
+	spin locks can be used in interrupt handlers, whereas semaphores cannot be uses because they sleep
+	if a lock is uses in an interrupt handler, you must also disable local interrupts before obtaining the lock
+	the interrupt handler spins, waiting for the lock to become available.
+	however the lock holder does not run until the interrupt handler completes
+	-> deadlock
+
+	disable interrupts only on the current processor
+	if an interrupt occurs on a different processor, and it spins on the same lock, it does not prevent the lock holder
+
+	DEFINE_SPINLOCK(mr_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&mr_lock, flags)
+	/*critical region...*/
+	spin_unlock_irqrestore(&mr_lock, flags)
+
+	spin_lock_irqsave() saves the current state of interrupts, disables them locally, and then obtains the given lock
+
+	spin_unlock_irqrestore() unlocks the given lock and returns interrupts to their previous state
+
+	flags variable is seemingly passed by value
+
+	DEFINE_SPINLOCK(mr_lock)
+
+	spin_lock_irq(&mr_lock);
+	/* critical section ... */
+	spin_unlock_irq(&mr_lock)
+
+	as the kernel grows in size and complexity. it increasingly hard to ensure that interrupts are always enabled in any given code path in the kernel
+
+	if you use it, you had better be positive that interrupts were originally on or people will be upset when they expect interrupts to be off but find them on
+
+Other Spin Lock Methods
+
+	spin_lock_init() : initialize a dynamically created spin lock
+
+	spin_trylock() : attempts to obtain the given spin lock
+
+	spin_is_locked() : returns nonzero if the given lock is currently acquired
+	otherwise, it returns 0
+
+Spin Locks and Bottom Halves
+
+	spin_lock_bh(): obtains the given lock and disables all bottom halves
+
+	spin_unlock_bh(): inverse of spin_lock_bh()
+
+	both(interrupt & bottom half) obtain appropriate lock and disable interrupts
+
+	tasklets of the different type can run simultaneously
+	-> must obtain a normal spin lock before accessing the data in the bottom half
+	do not need to disable bottom halves because a tasklet never preempts another running tasklet
+
+	softirqs must be protected with a lock
+	softirqs never preempts another running softirqs
+	->disabling bottom halves is not needed
+
+	Reader-Writer Spin Locks
+
+	lock usage can be cleverly divided into reader and writer path
+
+	Linux kernel provides reader-writer spin locks
+	Reader-writer spin locks provide separate reader and writer variants of the lock
+	one or more readers can concurrently hold the reader lock
+	the writer lock can be held by at most one writer with no concurrent readers
+
+	DEFINE_RWLOCK(mr_rwlock)
+
+	read_lock(&mr_rwlock)
+	/* critical section (read only) */
+	read_unlock(&mr_rwlock)
+
+	write_lock(&mr_rwlock)
+	/* critical section (read and write) */
+	write_unlock(&mr_rwlock)
+
+	you cannot upgrade a read lock to a write lock
+	if you ever need to write, obtain the write lock from the start
+
+	it is safe for multiple readers to obtain the same lock
+	it is safe for the same thread recursively obtain the same read lock
+	->if you have only readers in interrupt handlers but no writers,
+	you can use read_lock() instead of read_lock_irqsave() for reader protection
+
+	Linux reader-writer spin locks favor reader over writers
+	spinning writer does not acquire the lock until all readers release the lock
+
+	spin locks provide a quick and simple lock
+	spinning behavior is optimal for short hold times and code that cannot sleep(ex. interrupt handlers)
+	in cases where the sleep might be long or you potentially need to sleep while holding the lock, the semaphore is a solution

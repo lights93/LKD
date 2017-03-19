@@ -1,0 +1,30 @@
+Interrupt Handlers
+
+	interrupt handler(Interrupt Service Routine) - function the kernel runs in response to a specific interrupt
+
+	each device that generates interrupts has an associated interrupt handler
+
+	in Linux, interrupt handlers are normal C functions
+
+	what differentiates interrupt handler from other kernel functions is that the kernel invokes them in response to interrupts and that they run in a special context called interrupt context(atomic context)
+
+	interrupt handler can be executed at any time
+
+	it is important to the hardware that the PS services the interrupt without delay
+
+	it is also important to the rest of the system that the interrupt handler executes as short as possible
+
+	interrupt handler's job is to acknowledge the interrupt's receipt to hardware
+
+	interrupt handler have a large amount of work to perform
+
+Top Halves Versus Bottom Halves
+
+	two goals	- execute quickly
+				- perform a large amount of work
+
+	because of these competing goals, the processing of interrupts is split into two parts
+
+	top half - run immediately upon receipt of the interrupt and performs only the work that is time-critical
+
+	bottom half - runs in the future, at a more convenient time, with all interrupts enabled

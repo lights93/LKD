@@ -1,0 +1,80 @@
+Process Scheduling
+
+Multitasking
+
+	multitasking OS - simultaneously interleave execution of more than one process
+
+	modern linux system can have many processes in memory but, only one in a runnable state
+
+	preemptive multitasking	- the scheduler decides when a process is to cease running and a new process is to begin running
+
+							-preemption: the act of involuntarily suspending a running process
+
+							-timeslice: the time a process runs before it is preempted
+
+	cooperative multitasking	- process does not stop running until it voluntarily decides to do so
+
+								-yield: act of process voluntarily suspending itself
+
+Linux's Process Scheduler
+
+	2.4 kernel	- easy and simple
+				- scaled poorly in light of many runnable process or many processors
+
+	2.5 kernel	- O(1) scheduler solved the shortcomings of the previous Linux Scheduler and introduced powerful new features and performance characteristics
+
+	O(1) scheduler had several pathological failures related to scheduling latency-sensitive applications(interactive process)
+
+	2.6 kernel - introduce new process schedulers(fair scheduler) aimed at improving the interactive performance of the O(1) scheduler
+
+	2.6.23 kernel -  CFS(completely fair scheduler)
+
+Policy
+
+	policy - the behavior of the scheduler that determines what runs when
+
+I/O-Bound Versus Processor-Bound Processes
+
+	I/O-Bound	- spends much of its time submitting and waiting on I/O requests.
+				- runnable for only short durations, because it eventually blocks waiting on more I/O
+
+	Processor-Bound	- spend much of their time executing code.
+					- tends to run such processes less frequently but for long durations
+
+	this classifications are not mutually exclusive
+
+	two conflicting goals(fast process response time and maximal system utilization)
+
+	in Unix and Linux systems, tends to explicitly favor I/O-bound processes, thus providing good process response time
+	but does not neglect processor-bound processes.
+
+Process Priority
+
+	the goal is to rank processes based on their worth and need for processor time
+
+	nice value	-a number range -20~19 with a default of 0
+				-larger nice value -> lower priority
+				-standard priority range used in all Unix systems
+				-in Linux, it is a control over the proportion of timeslice
+
+	real-time priority	- by default range 0~99
+						- higher value -> high priority
+						- all real-time process are at a higher priority than normal priority 
+						- Linux implements real-time priorities in accordance with the relevant Unix standards, specifically POSIX.1b
+
+Timeslice
+
+	Too long timeslice causes the system to have poor interactive performance
+	Too short tiemslice causes significant amounts of processor time to be wasted on the overhead of switching processes
+
+	linux's CFS scheduler assigns processes a proportion of the processor
+	proportion is affected by each process's nice value
+
+	text editor(I/O) and Video encoder(processor) scenario
+		two goals	- want text editor have a large amount of processor time available when it needs it
+					- want text editor to preempt the video encoder the moment it wakes up(ex. keyboard input)
+
+		text editor spend most of their time blocked, so it does not use near 50% processor, conversely video encoder is free to use more than 50%
+
+		when text editor wakes up, CFS notes that it has used considerably less.
+		so, CFS preempt video encoder because of fair share	

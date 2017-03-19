@@ -1,0 +1,93 @@
+Interrupt Control
+
+	Linux kernel implements a family of interfaces for manipulating the state of interrupts on a machine
+	These interfaces enable you to disable the interrupt system for the current processor 
+	or mask out an interrupt line for the entire machine
+	These routines are all architecture-dependent
+
+	reasons to control the interrupt system generally boil down to needing to provide synchronization
+
+	disabling interrupts provides protection against concurrent access from a possible interrupt handler
+	and kernel preemption
+	lock provides protection against concurrent access from another processor
+
+	locks are often obtained in conjunction with disabling local interrupts
+
+Disabling and Enabling Interrupts
+
+	to disable interrupts locally for the current processor and then later reenable them
+	->	local_irq_disable()
+		local_irq_enable()
+
+	These functions are usually implemented as a single assembly operations
+	on x86,	local_irq_disable() - cli(clear allow interrupts flag)
+			local_irq_enable() - sti(set allow interrupts flag)
+
+	mechanism is needed to restore interrupts to a previous state 
+	(because disable -> disable, enable -> enable are dangerous)
+
+	it is becoming harder as the kernel grows in size and complexity to know all the code paths leading up to a function,
+	it is much safer to save the state of the interrupt system before disabling it
+
+		unsigned long flags 
+		local_irq_save(flags) - interrupts are now disabled
+		local_irq_restore(flags) - restored th their previous state
+
+		these methods are implemented at least in part as macros,
+		so the flag parameter is seemingly passed by value
+
+		this parameter contains architecture-specific data containing the state of the interrupt systems
+		-> flags cannot be passed th another function
+		-> the call to save and the call to restore interrupts must occur in the same function
+
+		No More Global cli()
+
+		cli() - disable interrupts on all processors in the system
+
+		sti() - enable interrupts on all processors in the system
+
+		these interfaces deprecated during 2.5
+		-> all interrupt synchronization must now use a combination of local interrupt control and spin locks
+
+		removing the global cli() has a handful of advantages
+			- forces driver writers to implement real locking
+			-> faster than global lock
+
+			-removal streamlined a lot of code in the interrupt system and removed a bunch more
+			-> simpler and easier to comprehend
+
+Disabling a Specific Interrupt Line
+
+	masking out an interrupt line - useful to disable only a specific interrupt line for the entire system
+
+	void disable_irq(unsigned int irq)
+		- disable a given interrupt line in the interrupt controller
+		- disable delivery of the given interrupt to all processors in the system
+		-does not return until any currently executing handler return
+
+	void disable_irq_nosync(unsigned int irq)
+		- disable a given interrupt line in the interrupt controller
+		- disable delivery of the given interrupt to all processors in the system
+		-does not wait for current handlers to complete
+
+		synchronize_irq() waits for a specific interrupt handler to exit, if it is executing, before returning
+
+		for each call to disable_irq() or disable_irq_nosync() on a given interrupt line, a corresponding call to enable_irq() is required
+
+		all three of these can be called from interrupt ore process context and do not sleep
+
+		disabling the line disables interrupt delivery for all devices on the line
+		-> drivers for newer devices tend not to use these interfaces
+
+Status of the interrupt System
+
+	it is often useful to know the state of the interrupt system or whether you are currently executing in interrupt context
+
+	macro irqs_disable() returns nonzero of the interrupt system on the local processor is disabled, otherwise it returns 0
+
+	2 macros provide an interface to check the kernel's current context
+
+	in_interrupt()	- returns nonzero if the kernel is performing any type of interrupt handling(interrupt handler + bottom half handler)
+					- returns 0 if the kernel is in process context
+	in_irq() - returns nonzero only if the kernel is specifically executing an interrupt handler
+

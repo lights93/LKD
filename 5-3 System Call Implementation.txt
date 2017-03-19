@@ -1,0 +1,50 @@
+System Call Implementation
+
+	adding a new system call to Linux is relatively easy
+	the hard work lies in designing and implementing the system call
+
+Implementing System Calls
+
+	The first step in implementing a system call is defining its purpose
+
+	Multiplexing syscalls(a single system call does wildly different things depending on a flag argument) is discouraged 
+
+	syscalls must not change because existing applications will come to rely on them
+
+	Many system calls provide a flag argument to address forward compatibility
+
+	flag argument is used to enable new functionality and options without breaking backward compatibility
+
+	purpose of the system call will remain constant but its uses may change
+	->design the system call to be as general as possible
+	->when writing a system call, realize the need for portability and robustness
+
+	Verifying the Parameters
+
+		system calls must verify all their parameters to ensure that they are valid and legal
+
+		one of the important checks is the validity of any pointers that the user provides
+
+		-pointer points to a region of memory in user-space
+		processes must not be able to trick the kernel into reading data in kernel-space on their behalf
+
+		-pointer points to a region of memory in the process's address space
+		The process must not be able to trick the kernel into reading someone else's data
+
+		-process must not be able to bypass memory access restrictions (reading, writing, executing)
+
+		the kernel provides 2 method for performing the requisite checks and the desired copy to and from user-space
+			- copy_to_user()
+				destination: processor's address space
+				source: pointer in kernel space
+				size in bytes of the data to copy
+
+			- copy_from_user()
+				destination: pointer in kernel space
+				source: processor's address space
+				size in bytes of the data to copy
+
+			both of these functions return the number of bytes they failed to copy on error
+			on success, they return zero
+
+		capable() - with a valid capabilities flag returns nonzero if the caller holds the specified capability and zero otherwise

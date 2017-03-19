@@ -1,0 +1,18 @@
+Disabling Bottom Halves
+
+	to safely protect shared data you need to obtain a lock and disable bottom halves
+
+	to disable all bottom-half processing, call local_bh_disable()
+	to enable bottom-half processing, call local_bh_enable()
+
+	the calls can be nested, only in the final call to local_bh_enable() actually enables bottom halves
+	the functions accomplish this by maintaining a per-task counter via the preempt_count
+	when the counter reaches 0, bottom-half processing is possible
+
+	these calls do not disable the execution of work queues
+	because there are no issues with asynchronous execution-> no need to disable them
+
+	softirqs and tasklets can occur asynchronously
+	-> kernel code may need to disable them
+
+	work queues protecting shared data is the same as in any process context

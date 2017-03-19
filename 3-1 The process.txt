@@ -1,0 +1,112 @@
+Process Management (chapter 3)
+
+The process
+
+	process	- executing program code + set of resources -> living result of running program code
+			  active program + related resources
+
+	thread	- object of activity within the thread
+			  share the same address space( read & write -> same data structures and variables)
+
+	linux does not differentiate thread and process. (thread is a special process)
+
+	fork()	- creates a new process by duplicating an existing one implemented via clone()
+
+	exec()	- creates a new address space and loads a new program into the process
+
+	exit()	- terminates the process and frees all its resources
+
+	wait()	- 뭐야!!!!!! wait4() 너도!!!
+
+Process Descriptor and the Task Structure
+
+	task list	- the list of processes in a circular doubly linked list
+				- each element is a process descriptor(struct task_struct)
+
+	task_struct	- contains all the information that kernel has and needs about process
+
+	Allocating the Process Descriptor
+
+	prior to the 2.6 kernel - task_struct was stored at the end of the kernel stack of each process
+
+	after 2.6 kernel	- dynamically created via the slab allocator(struct thread_info) was created 
+						  at the end of the kernel stack of each process
+						- the task element of the structure(struct thread_info) is a pointer
+						  to the task's actual task_struct
+
+Storing the Process Descriptor
+
+	PID - process identification value(unique)
+		- pid_t(opaque type) which is typically int
+		- maximum value is 32768(because of backward compatibility)(maximum number of process)
+		- may increase the maximum value via proc/sys/kernel/pid_max
+
+	current macro	- quickly look up the process descriptor of the currently executing task
+					- must be independently implemented by each architecture
+						- some architectures save a pointer to the task_struct
+					  of the currently running process in a register
+						- in x86(few registers to waste), calculate the location of thread_info
+					  and subsequently the task_struct
+
+Process State
+
+	state field of the process descriptor describes the current condition of the process
+
+	TASK_RUNNING	- either currently running or on a run queue waiting to run
+					- only state for a process executing in user-space (?? 뭔솔 ??)
+
+	TASK_INTERRUPTIBLE	- sleeping(blocked), waiting for some condition to exist
+						- when this condition exists,
+						  the kernel sets the process's state to TASK_RUNNING (?? 인터넷이랑 다른걸 ??)
+
+	TASK_UNINTERRUPTIBLE	- identical to TASK_INTERRUPTIBLE except that it does not wake up
+							  and become runnable if it receives a signal
+							- used in situations where the process must wait without interruption or
+							  when the event is expected to occur quickly (?? 어떻게 발생 ??)
+
+	__TASK_TRACED - traced by another process, such as a debugger, via ptrace
+
+	__TASK_STOPPED	- the task is not running nor is it eligible to run
+					- occurs if the task receives the SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU signal or
+					  if it receives any signal while it is being debugged.
+
+Manipulating the Current Process State
+
+	set_task_state(task, state) - sets the given task to the given state
+
+Process Context
+
+	normal program execution occurs in user-space
+
+	when a program executes a system call or triggers an exception, it enters kernel-space
+		-> kernel is in process context (current macro is valid)
+
+	all access to the kernel is through these interfaces(system call or exception handler)
+
+The Process Family Tree
+
+	All processes are descendants of the init process(PID=1)
+
+	Every process has exactly one parent and has zero or more children
+
+	Each task_struct(process descriptor) has a pointer to parent, and a list of children
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

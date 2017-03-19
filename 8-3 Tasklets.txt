@@ -1,0 +1,210 @@
+Tasklets
+
+	tasklets are a bottom-half mechanism built on top of softirqs
+
+	tasklets have a simpler interface and relaxed locking rules
+
+	softirqs are required only for high-frequency and highly threaded uses
+	tasklets work just fine for the vast majority of cases and are very easy to use
+
+Implementing Tasklets
+
+	because tasklets are implemented on top of softirqs, they are softirqs
+
+	tasklets are represented by 2 softirqs(HI_SOFTIRQ, TASKLET_SOFTIRQ)
+	HI_SOFTIRQ based tasklets run prior to the TASKLET_SOFTIRQ based tasklets
+
+	The Tasklet Structure
+
+		Tasklets are represented by the tasklet_struct structure
+
+		struct tasklet_struct {
+			struct tasklet_struct *next - next tasklet in the list
+			unsigned long state - state of the tasklet
+			atomic_t count - reference counter
+			void (*func)(unsigned long) - tasklet handler function
+			unsigned long data - argument to the tasklet function
+		}
+
+		state member
+			0
+			TASKLET_STATE_SCHED: scheduled to run
+			TASKLET_STATE_RUN: running, used only on multiprocessor machine because a uniprocessor machine always knows whether the tasklet is running
+
+		count field
+
+			-if it is nonzero, the tasklet is disabled and cannot run
+			-if it zero, tasklet is enabled and can run if marked pending
+
+	Scheduling Tasklets
+
+		Scheduled tasklets are stored in 2 per-processor structures
+			tasklet_vec(for regular tasklets)
+			tasklet_hi_vec(for high-priority tasklets)
+		both of these structures are linked lists of tasklet_struct
+
+		tasklets are scheduled via the tasklet_schedule() and tasklet_hi_schedule(), 
+		which receive a pointer to the tasklet's tasklet_struct as their lone argument
+
+		Each function ensures that the provided tasklet is not scheduled and then calls _tasklet_schedule() and __tasklet_hi_schedule()
+
+		tasklet_schedule()
+
+			1. check whether the tasklet's state is TASKLET_STATE_SCHED
+
+			2. call __tasklet_schedule()
+
+			3. save the state of the interrupt system, and then disable local interrupts
+
+			4. add the tasklet to be scheduled to the head of the tasklet_vec or tasklet_hi_vec linked list
+
+			5. raise the TASKLET_SOFTIRQ or HI_SOFTIRQ softirq, so do_softirq() executes this tasklet in the near future
+
+			6. restore interrupts to their previous state and return
+
+		do_softirq() executes tasklet_action() and tasklet_hi_action()
+
+			1. disable local interrupt delivery(there is no need to first save their state) and retrieve the tasklet_vec or tasklet_hi_vec list for this processor
+
+			2. clear the list for this processor by setting it equal to NULL
+
+			3. enable local interrupt delivery
+			there is no need to restore them to their previous state
+
+			4. loop over each pending tasklet in the retrieved list
+
+			5. if this is a multiprocessing machine, check whether the tasklet is running on another processor by checking the TASKLET_STATE_RUN flag
+			if is currently running, do not execute it now and skip to the next pending tasklet
+
+			6. if the tasklet is not running, set the TASKLET_STATE_RUN flag, so another processor will not run it
+
+			7. Check for a zero count value, to ensure that the tasklet is not disabled
+
+			8. we now know that the tasklet is not ruuning elsewhere, is marked as ruuning so it will not start ruuning elsewhere, and has a zero count value
+			run the tasklet handler
+
+			9. after the tasklet runs, clear the TASKLET_STATE_RUN flag
+
+			10. repeat for the next pending tasklet, until there are no more scheduled tasklets waiting to run
+
+		the implementation of tasklets is simple, but rather clever
+
+Using Tasklets
+
+	in most cases, tasklets are the preferred mechanism with which to implement your bottom half for a normal hardware device
+
+	Declaring Your Tasklets
+
+		You can create tasklets statically or dynamically
+
+		if you are going to statically create the tasklet(direct reference to it), use one of two macros in <linux/interrupt.h>
+
+		DECLARE_TASKLET(name, func, data) - creates the tasklet with a count zero
+		tasklet is enabled
+		DECLARE_TASKLET_DISABLED(name, func, data) - sets the coint to one
+		tasklet is disabled
+
+		both these macros statically create a struct tasklet_struct with the given name
+		when the tasklet is scheduled, the given function func is executed and passed the argument data
+
+		to initialize a tasklet given an indirect reference(a pointer) to a dynamically created
+		struct tasklet_struct call tasklet_init()
+
+	Writing Your Tasklet Handler
+
+		void tasklet_handler(unsigned long data)
+
+		as with softirqs, tasklets cannot sleep
+		-> cannot use semaphores or other blocking functions in a tasklet
+
+		unliked softirqs, two of the same tasklets never run concurrently( although two different tasklets can run at the same time on two different processors)
+
+		if your tasklet shares data with another tasklet or softirq, you nedd to use proper locking
+
+	Scheduling Your Tasklet
+
+		to schedule a tasklet for execution, tasklet_schedule() is called and passed a pointer to the relevant tasklet_struct
+
+		tasklet_schedule(&my_tasklet)
+
+		if the same tasklet is scheduled again, before it has had a chance to run, it still runs only once
+
+		if it is already running, for example on another processor, the tasklet is rescheduled and runs again
+
+		as an optimization, a tasklet always run on the processor that scheduled it
+
+		tasklet_disable() - disables the given tasklet
+		if the tasklet is currently running, the function will not return until it finished executing
+
+		tasklet_disable_nosync() - disables the given tasklet but does not wait for the tasklet to complete prior to returning(not safe)
+
+		tasklet_enable() - enables the tasklet
+
+		tasklet_kill()	- remove a tasklet from the pending queue
+
+						- receives a pointer as a line argument to the tasklet's tasklet_struct
+
+	ksoftirqd
+
+		softirqs(and tasklet) processing is aided by a set of per-processor kernel threads
+
+		the possibility of a high frequency of softirqs in conjunction with their capability to remark themselves active can result in user-space programs being starved of processor time
+		->two obvious solution
+
+			1. simply to keep processing softirqs as they come in and to recheck and reprocess any pending softirqs before returning
+
+				-ensures that the kernel processes softirqs in a timely manner
+
+				-any reactivated softirqs are also immediately processed
+
+				-problems in high load environments, that continually reactive themselves
+				-> user-space is neglected
+
+			2. not to handle reactivated softirqs
+
+				- prevents starving user-space
+
+				- starve the softirqs
+
+		ultimate solution: not immediately processs reactiavated softirqs
+
+			if the number of softirqs grows excessive, the kernel wakes up a family of kernel threads to handle the load
+
+			the kernel threads run with the lowest possible priority
+
+			this concession prevents heavy softirqs activity from completely starving user-space of procssor time
+
+			it also ensures that "excess" softirqs run eventually
+
+			Finally, this solution has the added property that on an idle system the softirqs are handled rather quickly because the kernel threads will scheduled immediately
+
+		ksoftirqd/n - thread, n is the processor number
+
+		if any softirqs are pending, ksoftirqd calls do_softirq() to handle them
+
+		it does repeatedly to handle any reactivated softirqs, too
+
+		after each iteration, schedule() is called if needed, to enable more important processes to run
+
+		after all processing is complete, the kernel thread sets itself, TASK_INTERRUPTIBLE and invokes the scheduler to select a new runnable process
+
+The Old BH Mechanism
+
+	Each BH must be statically defined, and maximum of 32
+
+	All BH handlers are strictly serialized ( no 2 BH handlers can run concurrently)
+	a driver using the BH interface did not scale well to multiple processors
+
+	other than these attributes, the BH mechanism is similar to tasklets
+
+	to mark a BH as pending, function mark_bh() was called and passed the number of the BH
+
+	before the 2.4 kernel, the BH mechanism was independently implemented and did not rely on any lower-level bottom-half mechanism, much as softirqs are implemented today
+
+	kernel developers introduced task queues to replace bottom halves
+
+	task queues never accomplished this goal
+
+	in 2.3, softirqs and tasklets were introduced to put an end to the BH
+
+	the kernel developers summarily removed the BH interface

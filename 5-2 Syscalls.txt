@@ -1,0 +1,64 @@
+Syscalls
+
+	- typically accessed via function calls defined in the C library
+
+	- define 0, 1 or more arguments(inputs) and might result in side effects
+
+	- return value of type long that signifies success or error
+
+	- have a defined behavior
+
+	-SYSCALL_DEFINE0 - macro that defines a system call with no parameters
+
+	-asmlinkage long sys_getpid(void)
+		asmlinkage: directive to tell the compiler to look only on the stack for this function's argument
+
+		long: return type for compatibility between 32 and 64 bit systems
+
+		getpid() system call is defined as sys_getpid()
+
+System Call numbers
+
+	In linux, each system call is assigned a syscall number
+
+	syscall number identifies which syscall was executed
+
+	when assigned, syscall number cannot change
+	-> if a syscall is removed. its syscall number cannot be recycled
+
+	sys_ni_syscall() - "not implemented syscall" 
+	-> only return -ENOSYS(invalid syscall)
+
+	sys_call_table - a list of all registered system calls
+
+System Call Performance
+
+	system calls in Liunx are faster than in many other OS
+	because of Linux's fast context switch times and simplicity of the system call handler and the individual system calls
+
+System Call Handler
+
+	user-space applications cannot execute kernel code directly
+
+	user-space applications must signal to the kernel that they want to execute a system call and have the system switch to kernel mode
+
+	mechanism to signal the kernel is a software interrupt
+	-> incur exception -> switch to kernel mode
+	->execute exception handler(system call handler)
+
+	system_call() - interrupt number 128, system call handler
+
+	sysenter - provides a faster, more specialized way of trapping into a kernel
+
+Denoting the Correct System Call
+
+	on x86, the syscall number is fed to the kernel via eax register
+
+	system_call() checks the validity of the given system call number by comparing it to NR_syscalls
+
+Parameter Passing
+
+	The way of parameter passing: stored in registers(ebx, ecx, edx, esi, edi)
+	if more than 5, a single register is used to hold a pointer to user-space where all the parameters are stored
+
+	The return value is sent to user-space via register(eax)
