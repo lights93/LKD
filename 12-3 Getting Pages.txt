@@ -1,0 +1,32 @@
+Getting Pages
+
+	kernel provides one low-level mechanism for requesting memory, along with several interfaces to access it
+	all these interfaces allocate memory with page-sized granularity and are declared in <linux/gfp.h>
+
+	struct page * alloc_pages(gft_p gfp_mask, unsigned int order)
+		allocates 2^order(1 << order) contiguous physical pages and returns a pointer to the first page's page structure
+
+	void * page_address(struct page *page)
+		returns a pointer to the logical address where the given physical page currently resides
+
+	unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
+		works the same as alloc_pages(), except that it directly returns the logical address of the first requested page
+
+	struct page * alloc_page(gfp_t gfp_mask)
+	unsigned long __get_free_page(gfp_t gfp_mask)
+		work the same, but pass zero for the order(one page)
+
+Getting Zeroed Pages
+
+	unsigned long get_zeroed_page(unsigned int gfp_mask)
+		work the same as __get_free_page() except that the allocated page is then zero-filled(every bit of every byte is unset)
+
+Freeing Pages
+
+	void __free_pages(struct page *page, unsigned int order)
+	void free_pages(unsigned long addr, unsigned int order)
+	void free_page(unsigned long addr)
+
+	you must be careful free only pages you allocate
+
+	these low-level page functions are useful when you need page-sized chunks of physically contiguous pages, especially if you need exactly a single page or two

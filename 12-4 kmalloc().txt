@@ -1,0 +1,81 @@
+kmalloc()
+
+	kmalloc() is similar to that of user-space's familiar malloc() routine, with the exception of the additional flags parameter
+
+	kmalloc() is a simple interface for obtaining kernel memory in byte-sized chunks
+
+	void * kmalloc(size_t size, gfp_t flags)
+		-returns a pointer to a region of memory that is at least size bytes in length
+		-the region of memory allocated is physically contiguous
+
+gfp_mask Flags
+
+	Flags are represented by the gfp_t type, defined in <linux/types.h>
+
+	the flags are broken up into 3 categories
+		action modifiers: specify how the kernel is supposed to allocate the requested memory
+
+		zone modifiers: specify from where(which zone?) to allocate memory
+
+		types: specify a combination of action and zone modifiers as needed by a certain type of memory allocation
+		you can specify just one type flag
+
+	Action modifiers
+
+		in reality, you usually use only type modifiers
+
+	Zone modifiers
+
+		kernel prefers ZONE_NORMAL to ensure that the other zones have free pages when they are needed
+
+		there are only 3 zone modifiers because there are only 3 zones other that ZONE_NORMAL(default)
+
+		you cannot specify __GFP_HIGHMEM to either __get_free_pages() or kmalloc()
+		because these both return a logical address, and not a page structure, it is possible that these functions would allocate memory not currently mapped in the kernel's virtual address space
+
+		the majority of your allocations will not specify a zone modifier because ZONE_NORMAL is sufficient
+
+	Type Flags
+
+		specify the required action and zone modifiers to fulfill a particular type of transaction
+
+		GFP_KERNEL	- normal priority allocation that might sleep
+					- used only from process context that can safely reschedule
+
+		GFP_ATOMIC	- specifies memory allocation that cannot sleep
+					- only option when the current code cannot sleep, interrupt handler, softirqs, tasklets
+
+		GFP_DMA	- used to specify that the allocator must satisfy the request from ZONE_DMA
+				- used by device drivers, which need DMA-able memory for their devices
+
+	regardless of the allocation type, you must check for and handle functions
+
+kfree()
+
+	frees a block of memory previously allocated with kmalloc(), or on memory that has already been freed
+
+vmalloc()
+
+	works in a similar fashion to kmalloc(), except it allocates memory that is only virtually contiguous and not necessarily physically contiguous
+
+	the pages returned by malloc() are contiguous within the virtual address of the processor, but there is no guarantee that they are actually contiguous in physical RAM
+
+	kmalloc() guarantees that the pages are physically contiguous(and virtually contiguous)
+
+	allocation potentially noncontiguous chunks of physical memory and "fixing up" the page tables to map the memory into a contiguous chunk of the logical address space
+
+	for the most part, only hardware devices require physically contiguous memory allocations
+	blocks of memory used only by software are fine using memory that is only virtually contiguous
+
+	most kernel code uses kmalloc() and not vmalloc() to obtain memory (for performance)
+	page obtained via vmalloc() must be mapped by their individual pages(because they are not physically contiguous), which results in much greater TLB than you see when directly mapped memory is used
+
+	vmalloc() is used only when absolute necessary(ex. to obtain large regions of memory)
+
+	void * vmalloc(unsigned long size)
+		returns a pointer to at least size bytes of virtually contiguous memory
+		the function might sleep and thus cannot be called from interrupt context or other situations in which blocking is not permissible
+
+	void vfree(const void *addr)
+		frees the block of memory beginning at addr that was previously allocated via vmalloc()
+		the function can also sleep and, thus, cannot be called from interrupt context

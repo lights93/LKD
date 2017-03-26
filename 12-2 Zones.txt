@@ -1,0 +1,34 @@
+Zones
+
+	because of hardware limitations, the kernel cannot treat all pages as identical
+	the kernel divides pages into different zones
+
+	2 shortcomings of hardware with respect to memory addressing
+		
+		- some hardware devices can perform DMA(direct memory address) to only certain memory address
+		- some architectures can physically addressing larger amounts of memory that they can virtually address
+		-> some memory is not permanently mapped into the kernel address spaces
+
+	because of these constraints, Linux has 4 primary memory zones
+
+		-ZONE_DMA: contains pages that can undergo DMA
+		-ZONE_DMA_32: contains pages that can undergo DMA, these pages are accessible only by 32-bit devices
+		-ZONE_NORMAL: contains normal, regularly mapped, pages
+		-ZONE_HIGHMEM: contains "high memory", which are pages not permanently mapped into the kernel's address space
+
+	the actual use and layout of the memory zones is architecture-dependent
+
+	Linux partitions the system's page into zones to have a pooling in place to satisfy allocation as needed
+
+	some allocations may require pages from a particular zone, other allocations may pull from multiple zones
+
+	not all architectures define all zones
+
+	each zone is represented by struct zone
+		lock	- spin lock that protects structure from concurrent access
+				- it protects just the structure and not all pages that reside in the zone
+
+		watermark	- holds the minimum, low, and high watermarks for this zone
+					- kernel uses watermarks to set benchmarks for suitable per-zone memory consumption. varying its aggressiveness as the watermarks vary face to face free memory
+
+		name	- representing the name of this zone, three zones are given names DMA, Normal, HighMem

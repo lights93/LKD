@@ -1,0 +1,45 @@
+Memory Management
+	
+Pages
+
+	kernel treats physical pages as the basic unit of memory management
+
+	MMU(memory manage unit) maintains the system's page tables with page-sized granularity
+
+	in terms of virtual memory, pages are the smallest unit that matters
+
+	Most 32-bit architectures have 4KB pages, whereas most 64-bit architectures have 8KB bytes
+
+	kernel represents every physical page on the system with a struct page structure, defined in <linux/mm_types>
+
+	struct page{
+		unsigned long			flags;
+		atomic_t				_count;
+		atomic_t				_mapcount;
+		unsigned long			private;
+		struct address_space	*mapping;
+		pgoff_t					index;
+		struct list_head		lru;
+		void					*virtual;
+	}
+
+	flags	- stores the status of the page
+			- whether the page is dirty or whether it is locked
+			- represents the various values, so at least 32 different flags are simultaneously available
+
+	_count	- stores the usage count of the page(how many references there are to this page)
+			- when this value<0, no one is using the page, and it becomes available for use in a new allocation
+			- kernel code should not check its value, directly but instead use th page_count()
+			when the page is free, page_counts() returns zero to indicate free and a positive nonzero integer when the page is in use
+
+	virtual - page's virtual address
+			- some memory(high memory) is not permanently mapped in the kernel's address space
+
+	important point to understand is that the page structure is associated with physical pages, not virtual pages
+
+	the kernel uses this data structure to describe the associated physical page
+	data structure's goal is to describe physical memory, not the data contained therein
+
+	the kernel uses this data structure to keep track of all the pages in the system, because the kernel needs to know whether a  page is free
+
+	not too high a cost for managing all the system's physical pages
