@@ -1,2 +1,121 @@
 Slab Layer
 	
+	allocating and freeing data structures is one of the most common operations inside any kernel
+	to facilitate frequent allocations and deallocations of data, programmers often introduce free lists
+
+	free list contains a block of available, already allocated, data structures
+
+	one of the main problems with free lists in the kernel is that there exist no global control
+	when available memory is low, there is no way for the kernel to communicate to every free list that it should shrink the sizes of its cache to free up memory
+	to remedy, to consolidate this, the Linux kernel provides the slab layer(also called slab allocator)
+	slab later acts as a generic data structure-caching layer
+
+	Linux data structure caching layer shares the same name and basic design
+
+	slab layer attempts to leverage several basic tenets
+
+		- frequently used data structures tend to be allocated and freed often, so cache them
+
+		- frequent allocation and deallocation can result in memory fragmentation(the inability to find large contiguous chunks of available memory)
+		to prevent this, the cached free lists are arranged contiguously
+
+		- free list provides improved performance during frequent allocation and deallocation because a freed object can be immediately returned to the next allocation
+
+		- if the allocator is aware of concepts such as object size, page size, and total cache size, it can make more intelligent decisions
+
+		- if part of the cache is made per-processor(separate and unique to each processor on the system), allocations and frees can be performed without an SMP lock
+
+		- if the allocator is NUMA-aware, it can fulfill allocations from the same memory node as the requestor
+
+		- stored objects can be colored to prevent multiple objects from mapping to the same cache lines
+
+Design of the Slab layer
+
+	slab layer divides different objects into groups called caches, each of which stores a different type of object
+
+	there is one cache per object type
+	kmalloc() interface is built on top of the slab layer, using a family of general purpose caches
+
+	the caches are then divided into slabs
+	slabs are composed of one or more physically contiguous pages
+	typically, slabs are composed of a single page
+	each cache may consist of multiple slabs
+
+	each slabs contains some number of objects, which are the data structures being cached
+	each slab is in one of 3 states: full, partial, or empty
+	when some part of kernel requests a new object, the request is satisfied from a partial slab, if one exists
+	otherwise, the request is satisfied from an empty slab
+	if there exists no empty slab, one is created
+
+	each cache is represented by a kmem_cache structure
+	this structure contains 3 lists: slabs_full, slabs_partial, slabs_empty
+	these lists contain all the slabs associated with the cache
+
+	struct slab{
+		struct list_head list;	//full, partial, or empty list
+		unsigned long colouroff;	// offset for the slab colouring
+		void *s_mem;	//first object in the slab
+		unsigned int inuse; //allocated objects in the slab
+		kmem_bufctl_t free;	// first free object, if any
+	}
+	slab descriptors are allocated either outside the slab in a general cache or inside the slab itself, as the beginning
+
+	static void *kmem_getpages(struct kmem_cache *cachep, gfp_t flags, int nodeid)
+		- the slab allocator creates new slabs by interfacing with the low-level kernel page allocator via __get_free_pages()
+		- the first parameter to this function points to the specific cache that need more pages
+		- the second parameter to this flags given to __get_free_pages()
+		- when nodeid is not negative one, the allocator attempts to fulfill the allocation from the same memory node that requested the allocation
+
+	memory is freed by kmem_frrepages(), calls free_pages() on the given cache's pages
+	the slab layer invokes the page allocation function only when there does not exist any partial or empty slabs in a given cache
+	the freeing function is called only when available memory grows low and the system is attempting to free memory, or when a cache is explicitly destroyed
+
+	slab layer is managed on a per-cache basis through a simple interface, which is exported to the entire kernel
+
+Slab Allocator Interface
+
+	struct kmem_cache * kmem_cache_create(	const char *name,
+											size_t size, 
+											size_t align,	//offset of the first object 
+											unsigned long flags, 
+											void (*ctor)(void *)	//constructor for the cache
+											)
+
+	this function must not be called from interrupt context because it can sleep
+
+	flags parameter - specifies optional settings controlling the cache's behavior
+
+		- SLAB_HWCACHE_ALIGN 	- instructs the slab layer to align each object within a slab to a cache line
+								- prevents false sharing(two or more objects mapping to the same cache line despite existing at different addresses in memory)
+								- improves performance but comes at a cost of increased memory footprint because the stricter alignment results in more wasted slack space
+								- for frequently used caches in performance-critical code, setting this option is a good idea
+
+		-SLAB_POISON	- causes the slab layer to fill the slab wit a known value
+						- this is called poisoning and is useful for catching access to uninitialized memory
+
+		-SLAB_RED_ZONE	- causes the slab layer to insert "red zones" around the allocated memory to help detect buffer overruns
+
+		-SLAB_PANIC	- causes the slab layer to panic if the allocation fails
+					- useful when the allocation must not fail
+
+		-SLAB_CACHE_DMA	- instructs the slab layer to allocate each slab in DMA-able memory
+						- this is needed if the allocated object is used for DMA and must reside in ZONE_DMA
+
+	int kmem_cache_destroy(struct kmem_cache *cachep)
+		the caller of this function must ensure two conditions are true prior to invoking this function
+
+			- all slabs in the cache are empty
+
+			- no one accesses the cache during a caoo to kmem_cache_destroy()
+
+Allocating from the Cache
+
+	an object is obtained from the cache via
+	void * kmem_cache_alloc(struct kmem_cache *cachep, gfp_t flags)
+
+	to free an object and return it to its originating slabe, uses the function
+	void kmem_cache_free(struct kmem_cache *cachep, void *objp)
+
+Example of Using Slab Allocator
+
+	slab layer handles all the low-level alignment, coloring, allocations, freeing, and reaping during low-memory conditions

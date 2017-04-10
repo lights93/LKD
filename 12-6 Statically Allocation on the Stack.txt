@@ -1,0 +1,36 @@
+Statically Allocation on the Stack
+
+	in user-space, allocations could have occurred on the stack because we knew the size of the allocation
+	user-space is afforded the luxury of a large, dynamically growing stack,
+	whereas the kernel has no such luxury - kernel's stack is small and fixed
+
+	the size of the per-process kernel stacks depends on both the architecture and a compile-time option
+
+	the kernel stack has been 2 pages per process(ex. 8KB for 32-bit, 16KB for 64-bit)
+
+Single-Page Kernel Stacks
+
+	early in 2.6 kernel series, an option was introduced to move to single-page kernel stacks
+	this was done for 2 reasons
+		1. it results in a page with less memory consumption per process
+		2. as uptime increases, it becomes increasingly hard to find 2 physically contiguous unallocated pages
+
+		however, interrupt handlers also used the kernel stack of the process they interrupted, thus they too had to fit
+		when the stack moved to only a single page, interrupt handlers no longer fit
+
+		kernel developers implemented a new feature: interrupt stacks
+		interrupt stacks provide a single per-processor stack used for interrupt handlers
+		with this option, interrupt handlers no longer share the kernel stack of the interrupted process
+		this consumes only a single page per processor
+
+		to summarize, kernel stacks are either 1 or 2 pages, depending on compile-time configuration options
+
+Playing Fair on the Stack
+
+	in any given function, you must keep stack usage to a minimum
+
+	performing a large static allocations on the stack is dangerous
+	because the kernel does not make any effort to manage the stack, 
+	when the stack overflows, the excess data simply spills into whatever exists at the tail end of the stack
+
+	therefore, it is wise to use a dynamic allocation scheme

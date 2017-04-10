@@ -1,0 +1,37 @@
+High Memory Mappings
+
+	pages in high memory might not be permanently mapped inti the kernel's address space
+
+	on the x86 architecture, all physical memory beyond the 896KB mark is high memory
+	and might not be permanently mapped into the kernel's address space
+	pages in high memory are mapped somewhere between the 3GB and 4GB mark
+
+Permanent Mappings
+
+	void *kmap(struct page *page)
+		- map a given page structure into the kernel's space
+		- works on either high or low memory
+		- if the page structure belongs to a page in low memory, the page's virtual address is simply returned
+		- if the page resides in high memory, a permanent mapping is created and the address is returned
+		- function may sleep, so kmap() works only in process context
+
+	because the number of permanent mappings are limited, high memory should be unmapped when no longer needed
+
+	void kunmap(struct page *page) - unmap the given page
+
+Temporary Mappings
+
+	when a mapping must be created but the current context cannot sleep, the kernel provides temporary mappings(atomic mappings)
+
+	a temporary mapping can be used in places that cannot sleep, such as interrupt handlers, because obtaining the mapping never blocks
+
+	void *kmap_atomic(struct page *page, enum km_type type)
+		- type parameter describe the purpose of the temporary mapping
+		- does not block and thus can be used in interrupt context and other places that cannot reschedule
+		- disables kernel preemption, which is needed because the mappings are unique to each processor( reschedule might change which task is running on which processor)
+
+	void kunmap_atomic(void *kvaddr, enum km_type type)
+		- does not block
+		- enable kernel preemption, because a temporary mapping is valid only until the next temporary mapping
+
+	next atomic mapping simply overwrites the previous one

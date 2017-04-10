@@ -1,0 +1,41 @@
+Per-CPU Allocations
+
+	typically per-CPU data is stored in an array
+
+	in 2.4 and 2.6 kernel, current processor number indexed array
+
+	unsigned long my_percpu[NR_CPUS]
+
+	no lock is required because this data is unique to the current processor
+
+	kernel preemption is the only concern with per-CPU data(2 problems)
+		- if your code is preempted and reschedules on another processor, the cpu variable is no longer valid because it points to the wrong processor
+
+		- if another task preempts your code, it can concurrently access my_percpu on the same processor, which is a race condition
+
+	get_cpu() on top of returning the current processor number, also disables kernel preemption
+	put_cpu() enables kernel preemption
+
+	if you use a call to smp_processor_id() to get the current processor number, kernel preemption is not disabled
+
+The New percpu Interface
+
+	2.6 kernel introduced a new interface, known as percpu, for creating and manipulating per-CPU data
+
+	previously discussed method of creating and accessing per-CPU data is still valid and accepted
+	however, percpu grew out of the needs for a simpler and more powerful method for manipulating per-CPU data on large symmetrical multiprocessing computers
+
+Per-CPU Data at Compile-Time
+
+	DEFINE_PER_CPU(type, name)
+		- defining a per-CPU variable at compile time
+		- creates an instance of a variable of type type, named name, for each processor on the system
+
+	DECLARE_PER_CPU(type, name)
+		- using when declaration of the variable elsewhere, to avoid compile warnings
+
+	get_cpu_var(name)++;	// increment name on this processor, disable kernel preemption
+	put_cpu_var(name);		// done, enable kernel preemption
+	per_cpu(name, cpu)++;	// increment name on the given processor(another processor)
+
+	per_cpu() neither disables kernel preemption nor provides any sort of locking mechanism
