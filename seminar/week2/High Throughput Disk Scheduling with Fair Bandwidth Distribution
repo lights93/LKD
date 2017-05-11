@@ -1,0 +1,52 @@
+High Throughput Disk Scheduling with Fair Bandwidth Distribution
+
+1. introduction
+	Meeting the disk bandwidth and per-request delay requirements of these applications and at the same time achieving a high throughput is not an easy work
+
+	web, DBMS, VOD, internetTV같은 device에서 disk bandwidth와 high throughput을 만족시키기는 어렵다
+
+	reason
+		1. service time이 매우 가변적이다
+
+		2. they block until outstanding request/batch has been completed
+		peculiar arrival pattern of synchronous requests may cause guarantee and disk throughput
+
+	the arrival time of a synchronous requests may be arbitarily delayed by a scheduler by just delaying the dispatching of the preceding request
+	synchronous request의 도착시간이 이전 요청의 발송 지연으로 인해 임의로 지연될수 있다.
+	-> 지연되지 않은 request에 비해 높은 time stamp를 받는다
+	-> bandwidth 또는 할당된 요청 완료시간을 보장하지 못한다
+
+
+
+
+
+2. BFQ
+
+2.1 System Model
+
+disk device services 2 types of disk requests, reading and writing
+
+after receiving the start command or completing a requests, the disk device asks for the next requests to serve by invoking the function dispatch exported by the BFQ scheduler
+
+at the opposite end, requests are issued by the N applications served by the storage system
+
+synchronous: if it can be issued by an application only after the completion of its previous request. otherwise, the request is denoted by asynchronous
+
+receiving service: if one of its requests is currently being served
+
+backlogged: if it has pending requests
+
+quasi-backlogged: backlogged or it is not backlogged but its backlog emptied not before time t- twait
+
+short or independent arrival property
+
+2.2 logical scheme
+
+budget measured in number of sectors
+
+each time a request of the active application is dispatched, the remaining budget counter is decreased by the size of the request
+
+in addition to not breaking a possible sequence of close or sequnetial accesses, this waiting is also instrumental in concealing delayed arrivals
+
+the active application is exclusively served until either there is not enough remaining budget to serve the next request or the application becomes idle
+

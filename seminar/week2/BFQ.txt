@@ -1,0 +1,7 @@
+BFQ(Budget Fair Queueing)
+	proportional share, or equivalent fair queueing, disk scheduler that allows each process/thread to be assigned a fraction of the disk throughput
+
+Properties
+
+	- it distributes the throughput to I/O-bound processes as desired, even if it fluctuates, independently of the device parameters and with any workload
+	BFQ does not provide this sector-domain fairness to processes issuing random requests, as this would easily cause the throughput to drop on one hand, and other processes to experience very high latencies on the other hand

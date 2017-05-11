@@ -1,0 +1,38 @@
+Evolution of the BFQ storage IO-scheduler
+
+1. introduction
+
+	an I/O scheduler for a shared storage device is a component in charge of deciding the order in which I/O requests are dispatched to the device
+
+	the scheduler decides that order so as to achieve several goals
+
+		-Achieving a high I/O throughput
+		-Guaranteeing a low latency to time-sensitive tasks
+		-Guaranteeing the desired fraction of the I/O throughput to each application competing for the device
+
+	as for the second main goal, 2 important classes of tasks are real-time and interactive ones
+
+		Real-time tasks
+
+		Interactive tasks
+
+	BFQ is a proportional-share I/O scheduler that allows each application to be guaranteed the desired fraction of the I/O throughput, even if the latter fluctuates
+	this fraction is established by assigning a fixed weight to each application
+
+	BFQ also allows the device to achieve a high aggregate throughput
+
+2. system model and common definitions
+
+3. BFQ algorithm
+
+	there is an internal request queue for each application, where the latter inserts its requests by invoking the interface add_request()
+
+	we define the set of requests present in one of these queues as the backlog of the application owning the queue
+
+	we say that application is backlogged if its backlog is not empty and idle otherwise
+
+	Access to the storage device is granted to one application at a time, denoted as the in-service application
+
+	each application has a budget assigned to it, measured in number of sectors
+
+	when an application becomes the in-service one, it is served exclusively until either this budget it exhausted or the backlog of the application empties. then BFQ selects the new in-service application, and so on.
